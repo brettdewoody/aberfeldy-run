@@ -103,10 +103,14 @@ const HAZARD_INFO = {
   smear: ['SKID MARK!', 'A long one. Jump it or swerve.'],
   bagged: ['BAGGED... AND LEFT', 'Picked up, then abandoned. Jump it.'],
   dog: ['DUG ALERT!', "It's about to do its business."],
+  bike: ['A BIKE!', 'Jump at the top to grab it. Ride the road, skip ahead.'],
 };
 const LM_KEYS = Object.keys(LANDMARK_X);
 
 const POO = { splat: { h: 0.12 }, small: { h: 0.42 }, bagged: { h: 0.4 }, mega: { h: 99 } };
+const BIKE_X = -2.45;     // riding line in the road, inside the centre line
+const BIKE_TIME = 5;      // seconds on the bike
+const BIKE_BOOST = 1.7;   // speed multiplier while riding
 const HANG_LOW = 1.45; // bottom of a hanging bag: run under it, don't jump into it
 const SWING = { ay: 3.7, len: 3.05, amp: 0.37 };
 
@@ -296,6 +300,7 @@ const Sound = (() => {
     stomp() { noise(0.3, 0.8, 1300); tone('sine', 140, 45, 0.3, 0.6); },
     close() { noise(0.25, 0.3, 1800, 'bandpass'); tone('triangle', 600, 1200, 0.12, 0.15); },
     welly() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone('square', f, null, 0.14, 0.16, i * 0.07)); },
+    bell() { for (const d of [0, 0.16]) { tone('sine', 2100, null, 0.35, 0.25, d); tone('sine', 2650, null, 0.3, 0.12, d); } },
     milestone() { [784, 988, 1175].forEach((f, i) => tone('triangle', f, null, 0.18, 0.25, i * 0.09)); },
   };
   // A made-up pipe tune in A mixolydian over a drone. C5 = C#5, F5 = F#5.
@@ -412,7 +417,7 @@ const GRAV = 30, JUMP_V = 9.2;
 function newGame(attract) {
   G = {
     attract, t: 0, dist: 0, speed: attract ? 6 : 10, bonus: 0, bags: 0, dodged: 0, score: 0,
-    p: { lane: 1, x: 0, y: 0, vy: 0, air: false, fast: false, phase: 0, welly: 0, lastLane: -9, jumpBuf: 0 },
+    p: { lane: 1, x: 0, y: 0, vy: 0, air: false, fast: false, phase: 0, welly: 0, bike: 0, grace: 0, lastLane: -9, jumpBuf: 0 },
     objs: [], scen: [], blds: [], parts: [], floats: [], splats: [], drops: [],
     clouds: Array.from({ length: 6 }, () => ({ x: Math.random(), y: rand(0.03, 0.22), s: rand(0.6, 1.4), v: rand(0.004, 0.012) })),
     nextRow: 34, nextBld: NEAR_Z - 1, nextLamp: 5, nextTree: NEAR_Z, nextLM: 16, nextBin: 11, nextTractor: rand(80, 160),
@@ -463,7 +468,7 @@ function fillWorld() {
     }
   }
   if (G.dist > G.nextTractor) {
-    G.scen.push({ k: 'tractor', x: -3.0, wz: G.dist + FAR_Z - 2, moving: 5 });
+    G.scen.push({ k: 'tractor', x: -3.55, wz: G.dist + FAR_Z - 2, moving: 5 });
     G.nextTractor = G.dist + rand(200, 380);
   }
 }
@@ -493,6 +498,7 @@ function spawnRow(wz) {
     ['welly', G.p.welly > 0 || G.t < 15 ? 0 : 0.22],
     ['bagtree', G.t < 6 ? 0 : 1.3 + d], ['swing', G.t < 18 ? 0 : 0.7 + d * 1.4],
     ['smear', 0.9 + d], ['gauntlet', d < 0.35 ? 0 : d * 1.6],
+    ['bike', G.t < 25 || G.p.bike > 0 || G.objs.some((o) => o.k === 'bike') ? 0 : 0.3],
   ];
   let r = Math.random() * table.reduce((s, e) => s + e[1], 0);
   let kind = table[0][0];
@@ -551,6 +557,14 @@ function spawnRow(wz) {
       G.objs.push({ k: 'smear', lane: lanes[0], x: laneX(lanes[0]), wz, len: rand(3, 3 + d * 2.5), seed: Math.random() * 10 });
       if (Math.random() < d) addPoo(lanes[1], wz + 1, pick(['small', 'bagged']));
       break;
+    case 'bike':
+      // The bike floats at the top of a jump, over a jobbie. Mega blocks the next lane;
+      // the third lane is safe if you run under its hanging bag.
+      addPoo(lanes[0], wz, 'small');
+      G.objs.push({ k: 'bike', lane: lanes[0], x: laneX(lanes[0]), wz, y: 1.2 });
+      addPoo(lanes[1], wz, 'mega');
+      G.objs.push({ k: 'hang', wz, seed: Math.random() * 10, bags: [{ lane: lanes[2], x: laneX(lanes[2]) }] });
+      break;
     case 'gauntlet':
       // Only lanes[2] gets through, and only with a jump.
       addPoo(lanes[0], wz, 'mega');
@@ -565,6 +579,7 @@ function spawnRow(wz) {
 function move(dir) {
   if (mode !== 'play') return;
   const p = G.p;
+  if (p.bike > 0) return; // steering's locked to the road while riding
   const nl = clamp(p.lane + dir, 0, 2);
   if (nl !== p.lane) { p.lane = nl; p.lastLane = G.t; Sound.sfx.lane(); }
 }
@@ -682,11 +697,17 @@ function update(dt) {
   if (mode === 'play' || G.attract) {
     if (!G.attract) G.speed = Math.min(30, 10 + G.t * 0.21);
     const prev = G.dist;
-    G.dist += G.speed * dt;
+    G.dist += G.speed * (p.bike > 0 ? BIKE_BOOST : 1) * dt;
     Sound.setTempo(0.85 + (G.speed - 10) / 20 * 0.45);
 
     // player
-    p.x += (laneX(p.lane) - p.x) * Math.min(1, dt * 17);
+    const slow = p.bike > 0 || p.grace > 0; // swerving on/off the road takes a moment
+    p.x += ((p.bike > 0 ? BIKE_X : laneX(p.lane)) - p.x) * Math.min(1, dt * (slow ? 5 : 17));
+    if (p.bike > 0) {
+      p.bike -= dt;
+      if (p.bike <= 0) { p.bike = 0; p.grace = 1.2; p.lane = 1; floater('BACK ON THE PAVEMENT', 'Mind yer step', { color: '#fff', size: 30 }); }
+    }
+    p.grace = Math.max(0, p.grace - dt);
     if (p.air) {
       p.vy -= GRAV * (p.fast ? 3.2 : 1) * dt;
       p.y += p.vy * dt;
@@ -769,6 +790,7 @@ function bootBag(x, y, z) {
 
 function updateObjs(dt, prev) {
   const p = G.p;
+  const immune = p.bike > 0 || p.grace > 0;
   for (const o of G.objs) {
     const zNow = o.wz - G.dist, zPrev = o.wz - prev;
     if (o.k === 'dog') { updateDog(o, dt, zNow); continue; }
@@ -776,7 +798,7 @@ function updateObjs(dt, prev) {
     const overlap = zNow < 0.35 && zPrev > -0.35;
     const dx = Math.abs(o.x - p.x);
     if (o.k === 'poo') {
-      if (overlap && dx < 0.58) {
+      if (overlap && dx < 0.58 && !immune) {
         if (o.size === 'mega' || p.y < POO[o.size].h) {
           if (p.welly > 0) { stomp(o); continue; }
           die(o); return;
@@ -793,14 +815,14 @@ function updateObjs(dt, prev) {
       }
     } else if (o.k === 'hang') {
       for (const b of o.bags) {
-        if (b.dead || !overlap || Math.abs(b.x - p.x) > 0.5 || p.y + 1.3 < HANG_LOW) continue;
+        if (immune || b.dead || !overlap || Math.abs(b.x - p.x) > 0.5 || p.y + 1.3 < HANG_LOW) continue;
         if (p.welly > 0) { b.dead = true; bootBag(b.x, 1.7, zNow); continue; }
         die(o); return;
       }
       if (!o.passed && zNow < -0.35) { o.passed = true; G.dodged += o.bags.length; }
     } else if (o.k === 'swing') {
       const sw = swingPos(o);
-      if (!o.dead && overlap && Math.abs(sw.x - p.x) < 0.48 && p.y < sw.top) {
+      if (!immune && !o.dead && overlap && Math.abs(sw.x - p.x) < 0.48 && p.y < sw.top) {
         if (p.welly > 0) { o.dead = true; bootBag(sw.x, sw.y, zNow); continue; }
         die(o); return;
       }
@@ -809,7 +831,7 @@ function updateObjs(dt, prev) {
         if (Math.abs(sw.x - p.x) < 1.1) { G.bonus += 20; floater('+20', pick(EXCL.close), { color: '#7dff7a' }); Sound.sfx.close(); }
       }
     } else if (o.k === 'smear') {
-      const on = zNow < 0.35 && zNow + o.len > -0.35 && dx < 0.5;
+      const on = !immune && zNow < 0.35 && zNow + o.len > -0.35 && dx < 0.5;
       if (on && p.y < 0.1) {
         if (p.welly > 0) { /* wellies don't care */ } else { die(o); return; }
       }
@@ -817,6 +839,17 @@ function updateObjs(dt, prev) {
       if (!o.passed && zNow + o.len < -0.35) {
         o.passed = true; G.dodged++;
         if (o.jumped) { G.bonus += 15; floater('+15', 'LANG LOUP!'); }
+      }
+    } else if (o.k === 'bike') {
+      if (overlap && dx < 0.55 && p.y > 0.9 && p.bike <= 0) {
+        o.dead = true;
+        p.bike = BIKE_TIME;
+        const [sx, sy] = P(o.x, o.y, Math.max(zNow, 0));
+        burst(sx, sy, 30, ['#e53935', '#ffffff', '#ffd400'], 1);
+        G.bonus += 50;
+        floater('ON YER BIKE!', '+50 · Skip ahead!', { color: '#ff6b6b', size: 54, life: 1.6 });
+        Sound.sfx.bell();
+        vibrate(40);
       }
     } else if (o.k === 'bag' || o.k === 'welly') {
       if (overlap && dx < 0.62 && o.y > p.y - 0.35 && o.y < p.y + 1.55) {
@@ -1129,6 +1162,27 @@ function drawWelly(o) {
   }
 }
 
+function drawBikePickup(o) {
+  const t = G.t;
+  ctx.translate(0, Math.sin(t * 4) * 6);
+  ell(0, -10, 62, 50, `rgba(255,80,80,${0.22 + Math.sin(t * 8) * 0.08})`);
+  for (let i = 0; i < 6; i++) { const a = t * 2 + (i * TAU) / 6; ell(Math.cos(a) * 58, -10 + Math.sin(a) * 46, 4, 4, '#fff'); }
+  ctx.strokeStyle = '#151515'; ctx.lineWidth = 6;
+  for (const wx of [-30, 30]) {
+    ctx.beginPath(); ctx.arc(wx, 0, 20, 0, TAU); ctx.stroke();
+    ctx.save(); ctx.translate(wx, 0); ctx.rotate(t * 8);
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-18, 0); ctx.lineTo(18, 0); ctx.moveTo(0, -18); ctx.lineTo(0, 18); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.strokeStyle = '#e53935'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-6, -30); ctx.lineTo(22, -30); ctx.lineTo(30, 0); ctx.moveTo(-6, -30); ctx.lineTo(4, 0); ctx.lineTo(22, -30);
+  ctx.moveTo(-10, -40); ctx.lineTo(-6, -30); ctx.moveTo(22, -30); ctx.lineTo(18, -44); ctx.stroke();
+  ctx.strokeStyle = '#151515'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(-18, -41); ctx.lineTo(-4, -41); ctx.moveTo(12, -46); ctx.lineTo(26, -44); ctx.stroke();
+  ctx.font = `30px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 6; ctx.strokeStyle = '#3b2412';
+  ctx.strokeText('BIKE!', 0, -62); ctx.fillStyle = '#ffd84d'; ctx.fillText('BIKE!', 0, -62);
+}
+
 function drawDog(o) {
   const t = G.t;
   const squat = o.state === 'poop';
@@ -1178,13 +1232,23 @@ function drawPlayer() {
   if (p.welly > 0) {
     ell(0, -65, 70, 85, `rgba(255,215,0,${0.22 + Math.sin(t * 14) * 0.08})`);
   }
-  const bob = p.air || dying ? 0 : Math.abs(Math.cos(ph)) * 5;
+  const riding = p.bike > 0 && !dying;
+  if (p.grace > 0 && !riding && Math.floor(t * 12) % 2) ctx.globalAlpha *= 0.45; // blink while landing
+  const bob = p.air || dying || riding ? 0 : Math.abs(Math.cos(ph)) * 5;
   ctx.translate(0, -bob);
+  if (riding) {
+    // rear wheel + mudguard seen from behind, rider sits up on the saddle
+    ctx.fillStyle = '#151515'; rr(-6, -78, 12, 78, 6); ctx.fill();
+    ctx.fillStyle = '#9e9e9e'; ctx.fillRect(-1.5, -70, 3, 62);
+    ctx.fillStyle = '#e53935'; rr(-9, -86, 18, 16, 6); ctx.fill();
+    ell(0, -80, 4, 3, '#ff8a80');
+    ctx.translate(0, -34);
+  }
   const welly = p.welly > 0;
   // legs
   const legY = -48;
-  const lf = p.air ? -16 : -Math.max(0, s1) * 22;
-  const rf = p.air ? -6 : -Math.max(0, -s1) * 22;
+  const lf = riding ? -8 - Math.max(0, s1) * 14 : p.air ? -16 : -Math.max(0, s1) * 22;
+  const rf = riding ? -8 - Math.max(0, -s1) * 14 : p.air ? -6 : -Math.max(0, -s1) * 22;
   for (const [lx, fy] of [[-10, lf], [10, rf]]) {
     ctx.fillStyle = '#f1c7a5';
     ctx.fillRect(lx - 6, legY, 12, fy - 18 - legY);
@@ -1214,9 +1278,17 @@ function drawPlayer() {
   fitText('DODGER', 0, -94, 30, 12, '#ffd84d');
   // arms
   ctx.strokeStyle = '#23365e'; ctx.lineWidth = 10; ctx.lineCap = 'round';
-  const swing = p.air ? -14 : s1 * 12;
-  ctx.beginPath(); ctx.moveTo(-17, -106); ctx.lineTo(-26, -84 - swing); ctx.moveTo(17, -106); ctx.lineTo(26, -84 + swing); ctx.stroke();
-  ell(-26, -82 - swing, 5.5, 5.5, '#f1c7a5'); ell(26, -82 + swing, 5.5, 5.5, '#f1c7a5');
+  if (riding) {
+    ctx.beginPath(); ctx.moveTo(-17, -106); ctx.lineTo(-32, -92); ctx.moveTo(17, -106); ctx.lineTo(32, -92); ctx.stroke();
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(-40, -94); ctx.lineTo(40, -94); ctx.stroke();
+    ell(-32, -92, 5.5, 5.5, '#f1c7a5'); ell(32, -92, 5.5, 5.5, '#f1c7a5');
+    ell(26, -98, 4, 3, '#ffd400'); // bell
+  } else {
+    const swing = p.air ? -14 : s1 * 12;
+    ctx.beginPath(); ctx.moveTo(-17, -106); ctx.lineTo(-26, -84 - swing); ctx.moveTo(17, -106); ctx.lineTo(26, -84 + swing); ctx.stroke();
+    ell(-26, -82 - swing, 5.5, 5.5, '#f1c7a5'); ell(26, -82 + swing, 5.5, 5.5, '#f1c7a5');
+  }
   // head (from behind)
   ell(-12, -121, 3.5, 5, '#f1c7a5'); ell(12, -121, 3.5, 5, '#f1c7a5');
   ell(0, -122, 12.5, 13, '#c4561d');
@@ -1755,6 +1827,7 @@ function collectSprites() {
     if (o.k === 'poo') add(z, () => sprite(o.x, 0, z, 1, () => drawPoo(o)));
     else if (o.k === 'bag') add(z, () => { drawShadow(o.x, z, 0.15, 0.15); sprite(o.x, o.y, z, 0.5, () => drawBag(o)); });
     else if (o.k === 'welly') add(z, () => { drawShadow(o.x, z, 0.3, 0.2); sprite(o.x, o.y, z, 0.6, () => drawWelly(o)); });
+    else if (o.k === 'bike') add(z, () => { drawShadow(o.x, z, 0.35, 0.2); sprite(o.x, o.y, z, 0.8, () => drawBikePickup(o)); });
     else if (o.k === 'dog' && o.state !== 'wait') add(z, () => sprite(o.x, 0, z, 1, () => drawDog(o)));
     else if (o.k === 'hang') add(z + 0.05, () => sprite(BAG_TREE_X, 0, z, 4, () => drawHang(o)));
     else if (o.k === 'swing') add(z + 0.05, () => sprite(BAG_TREE_X, 0, z, 4, () => drawSwing(o)));
@@ -1793,6 +1866,15 @@ function drawOverlays() {
     ctx.beginPath();
     for (const d of G.drops) { ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - d.l * 0.15, d.y + d.l); }
     ctx.stroke();
+  }
+  // bike ride timer
+  if (G.p.bike > 0 && mode === 'play') {
+    const k = G.p.bike / BIKE_TIME, bw = Math.min(W * 0.42, 220), bx = cx - bw / 2, by = 86; // under the corner buttons
+    ctx.fillStyle = 'rgba(59,36,18,0.8)'; rr(bx - 4, by - 4, bw + 8, 22, 11); ctx.fill();
+    ctx.fillStyle = '#e53935'; rr(bx, by, Math.max(14, bw * k), 14, 7); ctx.fill();
+    ctx.font = `20px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeStyle = '#3b2412';
+    ctx.strokeText('ON YER BIKE', cx, by - 15); ctx.fillStyle = '#fff'; ctx.fillText('ON YER BIKE', cx, by - 15);
   }
   // welly vignette
   if (G.p.welly > 0) {

@@ -21,6 +21,8 @@ with Schiehallion behind you the whole way.
 - **Skid marks** are long. Jump them or swerve.
 - Scottie dogs run out and leave fresh ones in front of you.
 - Each 🟢 **poo bag** is worth 10 points. Hurdles, close shaves and stomps also add points.
+- 🚲 **The bike** floats at the top of a jump, above a jobbie, and is always guarded. Grab it and you're
+  **on yer bike**: 5 seconds riding the road at high speed past everything on the pavement.
 - 🥾 **Golden wellies** give 6 seconds of stomping through everything, hanging bags included.
 - It gets faster the longer you go. Sometimes it rains. This is Scotland.
 
