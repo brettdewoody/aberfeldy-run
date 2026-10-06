@@ -255,12 +255,45 @@ function stink(n, w, top, seed, alpha = 0.6) {
 const Sound = (() => {
   let ac = null, master = null, sfxGain = null, musicGain = null, noiseBuf = null;
   let muted = store.get('ajd_muted') === '1';
-  let musicOn = false, nextNote = 0, idx = 0, tempo = 1, drones = [];
+  let musicOn = false, nextNote = 0, idx = 0, tempo = 1, drones = [], silentEl = null;
+  // A tiny silent WAV. Playing an <audio> element from a tap moves iOS Safari's audio
+  // into "playback" mode, so Web Audio is heard even with the silent switch on.
+  function silentWavUrl() {
+    const n = 4000, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 8000, true); v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    str(36, 'data'); v.setUint32(40, n * 2, true);
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  }
+  function unlock() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* older iOS */ }
+    try {
+      if (!silentEl) {
+        silentEl = new Audio(silentWavUrl());
+        silentEl.loop = true;
+        silentEl.setAttribute('playsinline', '');
+      }
+      const p = silentEl.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* no HTML audio */ }
+  }
+  // Must be called from a tap/click handler.
   function init() {
-    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    unlock();
+    if (ac) {
+      // iOS uses 'interrupted' after calls/app switches, not just 'suspended'
+      if (ac.state !== 'running') ac.resume().catch(() => {});
+      return;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     ac = new AC();
+    if (ac.state !== 'running') ac.resume().catch(() => {});
+    // play one silent sample inside the tap: the classic iOS unlock
+    const b = ac.createBuffer(1, 1, 22050), src = ac.createBufferSource();
+    src.buffer = b; src.connect(ac.destination); src.start(0);
     master = ac.createGain(); master.gain.value = muted ? 0 : 1; master.connect(ac.destination);
     sfxGain = ac.createGain(); sfxGain.gain.value = 0.5; sfxGain.connect(master);
     musicGain = ac.createGain(); musicGain.gain.value = 0.09; musicGain.connect(master);
@@ -347,11 +380,12 @@ const Sound = (() => {
       nextNote += step; idx++;
     }
   }
+  function sleep() { if (silentEl) silentEl.pause(); }
   function setMuted(m) {
     muted = m; store.set('ajd_muted', m ? '1' : '0');
     if (master) master.gain.value = m ? 0 : 1;
   }
-  return { init, sfx, startMusic, stopMusic, tick, setMuted, setTempo(v) { tempo = v; }, get muted() { return muted; } };
+  return { init, sleep, sfx, startMusic, stopMusic, tick, setMuted, setTempo(v) { tempo = v; }, get muted() { return muted; } };
 })();
 
 // ---------------------------------------------------------------- leaderboard
@@ -2002,6 +2036,7 @@ function pause() {
   if (mode !== 'play') return;
   mode = 'paused';
   Sound.stopMusic();
+  Sound.sleep();
   show('pause');
 }
 function resume() {
@@ -2018,6 +2053,7 @@ function gameOver() {
   mode = 'over';
   hud.pause.classList.add('hidden');
   hideCaption();
+  Sound.sleep();
   const isBest = G.score > best;
   if (isBest) { best = G.score; store.set('ajd_best', String(best)); }
   $('overTitle').textContent = isBest && G.score > 0 ? 'NEW BEST!' : 'SPLAT!';
@@ -2118,7 +2154,9 @@ function syncMute() { muteBtn.textContent = Sound.muted ? '🔇' : '🔊'; }
 muteBtn.addEventListener('click', () => { Sound.init(); Sound.setMuted(!Sound.muted); syncMute(); });
 syncMute();
 
-document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { pause(); Sound.sleep(); } });
+// Any tap mid-run re-wakes audio (iOS can interrupt it after a call or notification).
+document.addEventListener('touchend', () => { if (mode === 'play') Sound.init(); }, { passive: true });
 
 // ---------------------------------------------------------------- main loop
 let last = performance.now();
