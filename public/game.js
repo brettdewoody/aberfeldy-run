@@ -501,7 +501,9 @@ const laneX = (l) => l - 1;
 function addPoo(lane, wz, size, extra) {
   G.objs.push(Object.assign({ k: 'poo', lane, x: laneX(lane), wz, size, seed: Math.random() * 10 }, extra));
 }
-function addBag(lane, wz, y = 0.45) { G.objs.push({ k: 'bag', lane, x: laneX(lane), wz, y }); }
+// Collectibles: golden chanterelles, foraged in the woods round Aberfeldy (kind 'bag' is historical).
+// Now and then a fly agaric turns up instead: worth more, definitely not for eating.
+function addBag(lane, wz, y = 0.45) { G.objs.push({ k: 'bag', lane, x: laneX(lane), wz, y, agaric: Math.random() < 0.05 }); }
 function bagLine(lane, wz, n) { for (let i = 0; i < n; i++) addBag(lane, wz + i * 1.6); }
 function bagArc(lane, wz) {
   const spread = G.speed * 0.11;
@@ -881,9 +883,15 @@ function updateObjs(dt, prev) {
         const [sx, sy] = P(o.x, o.y, Math.max(zNow, 0));
         if (o.k === 'bag') {
           G.bags++;
-          burst(sx, sy, 8, ['#3fbf3f', '#9cf59c', '#ffffff'], 0.5);
+          if (o.agaric) {
+            G.bonus += 40;
+            burst(sx, sy, 18, ['#d32f2f', '#ffffff', '#ffcdd2'], 0.8);
+            floater('+50', 'DINNAE EAT THAT!', { color: '#ff5252', size: 46 });
+          } else {
+            burst(sx, sy, 8, ['#f2a900', '#ffd966', '#ffffff'], 0.5);
+          }
           Sound.sfx.bag();
-          if (G.bags % 10 === 0) floater(`${G.bags} BAGS!`, 'Tidy Aberfeldy hero', { color: '#7dff7a', size: 40 });
+          if (G.bags % 10 === 0) floater(`${G.bags} CHANTERELLES!`, 'Forager supreme', { color: '#ffd24d', size: 40 });
         } else {
           p.welly = 6;
           burst(sx, sy, 30, ['#ffd400', '#fff3a0', '#ffffff'], 1);
@@ -1149,16 +1157,32 @@ function drawPoo(o) {
 
 function drawBag(o) {
   const t = G.t;
-  const bob = Math.sin(t * 4 + o.wz) * 6;
-  ctx.translate(0, bob);
-  ell(0, 0, 26, 26, 'rgba(255,255,140,0.25)');
-  ctx.scale(Math.max(0.25, Math.abs(Math.cos(t * 3 + o.wz))), 1);
-  ctx.fillStyle = '#3fbf3f'; ctx.strokeStyle = '#1b6e20'; ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(-13, -8); ctx.quadraticCurveTo(-18, 18, 0, 19); ctx.quadraticCurveTo(18, 18, 13, -8);
-  ctx.lineTo(9, -11); ctx.lineTo(12, -22); ctx.lineTo(3, -12); ctx.lineTo(-3, -12); ctx.lineTo(-12, -22); ctx.lineTo(-9, -11);
-  ctx.closePath(); ctx.fill(); ctx.stroke();
-  ell(-6, 0, 3, 7, 'rgba(255,255,255,0.45)');
+  ctx.translate(0, Math.sin(t * 4 + o.wz) * 6);
+  ctx.scale(1.35, 1.35);
+  ell(0, 0, 28, 28, o.agaric ? 'rgba(255,90,90,0.25)' : 'rgba(255,220,120,0.3)');
+  ctx.rotate(Math.sin(t * 3 + o.wz) * 0.25);
+  if (o.agaric) {
+    // fly agaric: red dome, white spots, white stem
+    ctx.fillStyle = '#f4efe4'; rr(-6, -4, 12, 24, 4); ctx.fill();
+    ctx.fillStyle = '#e8e0cf'; ctx.fillRect(-8, 4, 16, 4);
+    ctx.fillStyle = '#d32f2f';
+    ctx.beginPath(); ctx.moveTo(-22, -2); ctx.quadraticCurveTo(-22, -26, 0, -26); ctx.quadraticCurveTo(22, -26, 22, -2); ctx.closePath(); ctx.fill();
+    for (const [x, y, r] of [[-12, -10, 3.5], [0, -19, 4], [11, -12, 3], [-4, -7, 2.5], [15, -5, 2.2]]) ell(x, y, r, r * 0.85, '#fff');
+    ell(-9, -18, 4, 2, 'rgba(255,255,255,0.4)');
+  } else {
+    // chanterelle: golden trumpet with a wavy, upturned rim
+    const g = ctx.createLinearGradient(0, -24, 0, 20);
+    g.addColorStop(0, '#ffd24d'); g.addColorStop(1, '#e08a00');
+    ctx.fillStyle = g; ctx.strokeStyle = '#a65f00'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-5, 20); ctx.quadraticCurveTo(-6, 0, -22, -14);
+    ctx.quadraticCurveTo(-16, -22, -8, -18); ctx.quadraticCurveTo(0, -25, 8, -19);
+    ctx.quadraticCurveTo(16, -23, 22, -14); ctx.quadraticCurveTo(6, 0, 5, 20); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(166,95,0,0.6)'; ctx.lineWidth = 1.5;
+    for (const x of [-9, -3, 3, 9]) { ctx.beginPath(); ctx.moveTo(x * 1.6, -14); ctx.quadraticCurveTo(x * 0.6, 0, x * 0.25, 16); ctx.stroke(); }
+    ell(-10, -16, 5, 2, 'rgba(255,255,255,0.45)');
+  }
 }
 
 function drawWelly(o) {

@@ -20,7 +20,8 @@ with Schiehallion behind you the whole way.
 - **Swinging poo bags** sweep across the pavement. Time your lane, or jump them.
 - **Skid marks** are long. Jump them or swerve.
 - Scottie dogs run out and leave fresh ones in front of you.
-- Each 🟢 **poo bag** is worth 10 points. Hurdles, close shaves and stomps also add points.
+- Each golden **chanterelle** (foraged in the woods round Aberfeldy) is worth 10 points. A rare red **fly agaric**
+  is worth 50. Dinnae eat it. Hurdles, close shaves and stomps also add points.
 - 🚲 **The bike** floats at the top of a jump, above a jobbie, and is always guarded. Grab it and you're
   **on yer bike**: 5 seconds riding the road at high speed past everything on the pavement.
 - 🥾 **Golden wellies** give 6 seconds of stomping through everything, hanging bags included.
