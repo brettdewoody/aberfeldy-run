@@ -78,22 +78,22 @@ const LANDMARK_W = {
   bridge: 9.5, blackwatch: 2, distillery: 7, birks: 5, cows: 3.5, piper: 1, castle: 5, golf: 3,
   crannog: 6, taymouth: 6.5, dull: 2.6, yew: 4, footbridge: 10, rafting: 6,
 };
-// Shown in the caption bar as each landmark goes by.
+// Text for the big brown roadside sign before each landmark: [name, short line].
 const LANDMARK_INFO = {
-  bridge: ["Wade's Bridge", 'Built 1733 by General Wade. Still standing. Unlike you, soon.'],
-  blackwatch: ['Black Watch Memorial', 'The Black Watch first mustered here in 1740.'],
-  distillery: ['Aberfeldy Distillery', "Dewar's whisky, made here since the 1890s."],
-  birks: ["The Birks o' Aberfeldy", 'Burns wrote a song about these falls in 1787.'],
-  cows: ['Highland Coos', 'Hairy. Horny. Deeply unimpressed by your running.'],
-  piper: ['A Piper', 'Plays the same tune. All day. Every day.'],
-  castle: ['Castle Menzies', 'Clan Menzies seat, just over the river in Weem.'],
-  golf: ['Aberfeldy Golf Club', 'Mind the jobbies on the 7th green.'],
-  crannog: ['Scottish Crannog Centre', 'Iron Age houses on stilts, out on Loch Tay.'],
-  taymouth: ['Taymouth Castle', 'Kenmore. Queen Victoria popped by in 1842.'],
-  dull: ['Dull', 'Twinned with Boring, Oregon. Genuinely.'],
-  yew: ['Fortingall Yew', 'Maybe 2,000-5,000 years old. Seen a lot of poo.'],
-  footbridge: ['Aberfeldy Footbridge', 'Built 1992: one of the first plastic bridges in the world.'],
-  rafting: ['Grandtully Rapids', 'White-water rafting on the Tay. Cleaner than this pavement.'],
+  bridge: ["WADE'S BRIDGE", 'BUILT 1733'],
+  blackwatch: ['BLACK WATCH MEMORIAL', 'RAISED 1887'],
+  distillery: ['ABERFELDY DISTILLERY', "DEWAR'S WHISKY"],
+  birks: ["BIRKS O' ABERFELDY", 'FALLS · BURNS 1787'],
+  cows: ['HIGHLAND COOS', 'DO NOT FEED'],
+  piper: ['LIVE PIPER', 'ALL DAY. EVERY DAY.'],
+  castle: ['CASTLE MENZIES', 'WEEM · CLAN SEAT'],
+  golf: ['ABERFELDY GOLF CLUB', 'MIND THE 7TH'],
+  crannog: ['CRANNOG CENTRE', 'IRON AGE LOCH HOUSES'],
+  taymouth: ['TAYMOUTH CASTLE', 'KENMORE'],
+  dull: ['DULL', 'TWINNED WITH BORING'],
+  yew: ['FORTINGALL YEW', 'ANCIENT TREE'],
+  footbridge: ['ABERFELDY FOOTBRIDGE', 'PLASTIC · 1992'],
+  rafting: ['GRANDTULLY RAPIDS', 'WHITE-WATER RAFTING'],
 };
 // First time each hazard turns up in a session, the caption bar explains it.
 const HAZARD_INFO = {
@@ -108,6 +108,7 @@ const HAZARD_INFO = {
 const LM_KEYS = Object.keys(LANDMARK_X);
 
 const POO = { splat: { h: 0.12 }, small: { h: 0.42 }, bagged: { h: 0.4 }, mega: { h: 99 } };
+const LMSIGN_X = -4.55;   // post of the roadside landmark signs (board overhangs the road)
 const BIKE_X = -2.45;     // riding line in the road, inside the centre line
 const BIKE_TIME = 5;      // seconds on the bike
 const BIKE_BOOST = 1.7;   // speed multiplier while riding
@@ -475,6 +476,7 @@ function fillWorld() {
   while (G.nextLM < horizon) {
     const k = G.lmOrder[G.lmIdx++ % G.lmOrder.length];
     G.scen.push({ k, x: LANDMARK_X[k], wz: G.nextLM, seed: Math.random() * 10 });
+    G.scen.push({ k: 'lmsign', x: LMSIGN_X, wz: G.nextLM - 4, lm: k });
     G.lmZones.push([G.nextLM - 3, G.nextLM + 3]);
     G.nextLM += rand(34, 46);
   }
@@ -908,13 +910,6 @@ function updateObjs(dt, prev) {
 
 const introduced = new Set();
 function updateCaptions() {
-  for (const s of G.scen) {
-    const z = s.wz - G.dist;
-    if (!s.told && LANDMARK_INFO[s.k] && z < 26 && z > 0) {
-      s.told = true;
-      showCaption(LANDMARK_INFO[s.k][0], LANDMARK_INFO[s.k][1], false);
-    }
-  }
   for (const o of G.objs) {
     const key = o.k === 'poo' ? o.size : o.k;
     if (!HAZARD_INFO[key] || introduced.has(key)) continue;
@@ -1810,6 +1805,22 @@ function drawRafting() {
   brownSign('GRANDTULLY RAPIDS', 0, -260, 300, 46);
 }
 
+// Big brown tourist sign on a tall post at the far side of the road, overhanging it.
+function drawLandmarkSign(s) {
+  const [name, sub] = LANDMARK_INFO[s.lm];
+  ctx.scale(1.3, 1.3);
+  // board reaches from the far verge to the kerb, well above head height
+  const x0 = -30, x1 = (KERB_X - 0.35 - LMSIGN_X) * 100, top = -470, bot = -305;
+  ctx.fillStyle = '#5b5b5b'; ctx.fillRect(-9, -480, 18, 480);
+  ctx.fillRect(x1 - 30, -480, 14, 30);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; rr(x0 + 6, top + 6, x1 - x0, bot - top, 10); ctx.fill();
+  ctx.fillStyle = '#6b3a1f'; rr(x0, top, x1 - x0, bot - top, 10); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; rr(x0 + 7, top + 7, x1 - x0 - 14, bot - top - 14, 6); ctx.stroke();
+  const cxs = (x0 + x1) / 2;
+  fitText(name, cxs, top + 64, x1 - x0 - 36, 70, '#fff');
+  fitText(sub, cxs, top + 125, x1 - x0 - 44, 30, '#ffe2bf');
+}
+
 function drawShopSign(shop) {
   ctx.strokeStyle = '#151515'; ctx.lineWidth = 7; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(0, -96); ctx.lineTo(-195, -96); ctx.moveTo(0, -60); ctx.lineTo(-36, -96); ctx.stroke();
@@ -1845,12 +1856,12 @@ function collectSprites() {
   for (const s of G.scen) {
     const z = s.wz - D;
     const big = LANDMARK_W[s.k] ? 1.6 : 1; // landmarks are drawn larger than life so they read
-    const half = LANDMARK_W[s.k] ? LANDMARK_W[s.k] * big / 2 : 2;
+    const half = LANDMARK_W[s.k] ? LANDMARK_W[s.k] * big / 2 : s.k === 'lmsign' ? 3 : 2;
     const fns = {
       lamp: drawLamp, tree: drawTree, welcome: drawWelcome, bin: drawBin, tractor: drawTractor,
       bridge: drawBridge, blackwatch: drawBlackWatch, distillery: drawDistillery, birks: drawBirks,
       cows: drawCows, piper: drawPiper, castle: drawCastle, golf: drawGolf,
-      crannog: drawCrannog, taymouth: drawTaymouth, dull: drawDull, yew: drawYew, footbridge: drawFootbridge, rafting: drawRafting,
+      lmsign: drawLandmarkSign, crannog: drawCrannog, taymouth: drawTaymouth, dull: drawDull, yew: drawYew, footbridge: drawFootbridge, rafting: drawRafting,
     };
     const fn = fns[s.k];
     if (fn) add(z, () => sprite(s.x, 0, z, half, () => { ctx.scale(big, big); fn(s); }));

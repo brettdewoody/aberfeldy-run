@@ -29,8 +29,8 @@ with Schiehallion behind you the whole way.
 Landmarks you pass include Wade's Bridge, the Black Watch Memorial, the Birks o' Aberfeldy,
 Aberfeldy Distillery, Castle Menzies, the Aberfeldy Footbridge, Taymouth Castle, the Scottish
 Crannog Centre, the Fortingall Yew, Dull (twinned with Boring), the Grandtully rapids,
-the golf club, a piper and some Highland coos. A caption at the bottom of the screen
-names each one as you go by.
+the golf club, a piper and some Highland coos. A big brown tourist sign at the roadside
+names each one as you approach.
 
 When you're done, enter 3 initials. The leaderboard shows the **Top 10** only.
 
