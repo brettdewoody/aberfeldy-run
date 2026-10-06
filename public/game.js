@@ -208,20 +208,6 @@ function fitText(text, x, y, maxW, size, col, align = 'center') {
   ctx.textBaseline = 'middle';
   ctx.fillText(text, x, y);
 }
-function brownSign(text, x, y, w, h = 44) {
-  // UK brown tourist-attraction sign, drawn oversized so it reads on a phone
-  w *= 1.35; h = Math.max(h, 44) * 1.5;
-  // landmarks sit off to the left, so slide the sign along to keep it on screen
-  const m = ctx.getTransform(), pad = 6 * DPR;
-  const left = m.a * (x - w / 2) + m.e, right = m.a * (x + w / 2) + m.e;
-  if (left < pad) x += (pad - left) / m.a;
-  else if (right > canvas.width - pad) x -= (right - (canvas.width - pad)) / m.a;
-  ctx.fillStyle = '#6b3a1f';
-  rr(x - w / 2, y - h, w, h, 6); ctx.fill();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
-  rr(x - w / 2 + 4, y - h + 4, w - 8, h - 8, 4); ctx.stroke();
-  fitText(text, x, y - h / 2 + 3, w - 22, h * 0.6, '#fff');
-}
 function flies(n, cxp, cyp, rx, ry, seed, size = 3) {
   const t = G.t;
   for (let j = 0; j < n; j++) {
@@ -1437,7 +1423,6 @@ function drawBridge() {
     ctx.fillRect(ox - 12, base - 14, 24, 14);
     ctx.beginPath(); ctx.moveTo(ox - 9, base - 14); ctx.lineTo(ox, base - 110); ctx.lineTo(ox + 9, base - 14); ctx.fill();
   }
-  brownSign("WADE'S BRIDGE · 1733", 0, -390, 340, 52);
 }
 
 function drawBlackWatch() {
@@ -1460,7 +1445,6 @@ function drawBlackWatch() {
   ell(0, sy - 145, 14, 15, c);
   ctx.fillStyle = d; rr(-18, sy - 196, 36, 48, 14); ctx.fill();
   ctx.strokeStyle = d; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(30, sy - 40); ctx.lineTo(42, sy - 160); ctx.stroke();
-  brownSign('BLACK WATCH MEMORIAL', 0, -560, 300, 48);
 }
 
 function drawDistillery() {
@@ -1515,7 +1499,6 @@ function drawBirks(s) {
     ell(0, -120, 45, 40, '#79ad48'); ell(-20, -100, 26, 24, '#5f9a3a'); ell(22, -140, 28, 26, '#8cc157');
     ctx.restore();
   }
-  brownSign("THE BIRKS O' ABERFELDY", 0, -500, 340, 50);
   ctx.font = `italic 22px Georgia, serif`; ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
   ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 4;
   ctx.strokeText('"Bonie lassie, will ye go…" — Burns', 0, -425);
@@ -1542,7 +1525,6 @@ function drawCow(x, k, t, seed) {
 function drawCows(s) {
   drawCow(-90, 1, G.t, s.seed);
   drawCow(120, 0.85, G.t + 1, s.seed + 2);
-  brownSign('HIGHLAND COOS (UNIMPRESSED)', 0, -230, 340, 44);
 }
 
 function drawPiper() {
@@ -1590,7 +1572,6 @@ function drawCastle() {
   ctx.fillStyle = '#3a4d63';
   for (const [x, y] of [[-100, -200], [-30, -200], [40, -200], [110, -200], [-100, -120], [110, -120], [-180, -280], [180, -280]]) ctx.fillRect(x - 10, y, 20, 32);
   ctx.fillStyle = '#5a3a1f'; rr(-20, -90, 40, 90, 18); ctx.fill();
-  brownSign('CASTLE MENZIES', 0, -450, 260, 46);
 }
 
 function drawGolf(s) {
@@ -1609,7 +1590,6 @@ function drawGolf(s) {
   ell(-48, -32, 10, 5, '#6b3d1a');
   ctx.fillStyle = '#fff'; ctx.font = `30px ${FONT}`; ctx.textAlign = 'center';
   ctx.fillText('?!', -40, -180 - Math.abs(Math.sin(t * 4)) * 8);
-  brownSign('ABERFELDY GOLF CLUB', 0, -240, 280, 44);
 }
 
 // Hanging poo bags: a kerbside tree with a branch reaching over the pavement.
@@ -1695,7 +1675,6 @@ function drawCrannog() {
   for (let i = -5; i <= 5; i++) { ctx.beginPath(); ctx.moveTo(i * 24, -196); ctx.lineTo(0, -326); ctx.stroke(); }
   ctx.fillStyle = '#2b1d14'; rr(-18, -170, 36, 54, 14); ctx.fill();
   for (let i = 0; i < 3; i++) { const ph = (t * 0.4 + i / 3) % 1; ell(10 + ph * 30, -340 - ph * 70, 10 + ph * 18, 8 + ph * 14, `rgba(200,200,200,${0.5 * (1 - ph)})`); }
-  brownSign('SCOTTISH CRANNOG CENTRE', 0, -380, 320, 48);
 }
 
 function drawTaymouth() {
@@ -1716,7 +1695,6 @@ function drawTaymouth() {
   ctx.fillStyle = '#2b1d14'; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-30, -70); ctx.arc(0, -70, 30, Math.PI, 0); ctx.lineTo(30, 0); ctx.fill();
   ctx.fillStyle = '#c8102e'; ctx.fillRect(-2, -560, 4, 60);
   ctx.beginPath(); ctx.moveTo(2, -560); ctx.lineTo(50, -548 + Math.sin(G.t * 5) * 4); ctx.lineTo(2, -536); ctx.fill();
-  brownSign('TAYMOUTH CASTLE', 0, -600, 300, 48);
 }
 
 function drawDull() {
@@ -1746,7 +1724,6 @@ function drawYew() {
   for (const [x, y, r] of [[-120, -260, 90], [0, -320, 110], [120, -260, 90], [-60, -220, 70], [70, -210, 70], [0, -400, 70]]) {
     ell(x, y, r, r * 0.75, '#2f4a2a'); ell(x - r * 0.2, y - r * 0.2, r * 0.6, r * 0.45, '#3d5e34');
   }
-  brownSign('FORTINGALL YEW', 0, -480, 280, 46);
 }
 
 function drawFootbridge() {
@@ -1771,7 +1748,6 @@ function drawFootbridge() {
   // golfer crossing
   const gx = ((t * 40) % 800) - 400;
   ell(gx, -205, 9, 10, '#f1c7a5'); ctx.fillStyle = '#e45b9c'; ctx.fillRect(gx - 9, -195, 18, 26); ctx.fillStyle = '#333'; ctx.fillRect(gx - 7, -169, 14, 18);
-  brownSign('ABERFELDY FOOTBRIDGE · 1992', 0, -470, 380, 48);
 }
 
 function drawRafting() {
@@ -1802,7 +1778,6 @@ function drawRafting() {
   ctx.restore();
   ctx.font = `34px ${FONT}`; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 6; ctx.textAlign = 'center';
   ctx.strokeText('WHEEEE!', 60, -190 + bob); ctx.fillText('WHEEEE!', 60, -190 + bob);
-  brownSign('GRANDTULLY RAPIDS', 0, -260, 300, 46);
 }
 
 // Big brown tourist sign on a tall post at the far side of the road, overhanging it.
