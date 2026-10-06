@@ -441,8 +441,10 @@ function newGame(attract) {
     p: { lane: 1, x: 0, y: 0, vy: 0, air: false, fast: false, phase: 0, welly: 0, bike: 0, grace: 0, lastLane: -9, jumpBuf: 0 },
     objs: [], scen: [], blds: [], parts: [], floats: [], splats: [], drops: [],
     clouds: Array.from({ length: 6 }, () => ({ x: Math.random(), y: rand(0.03, 0.22), s: rand(0.6, 1.4), v: rand(0.004, 0.012) })),
-    nextRow: 34, nextBld: NEAR_Z - 1, nextLamp: 5, nextTree: NEAR_Z, nextLM: 16, nextBin: 11, nextTractor: rand(80, 160),
-    lmZones: [], lmOrder: ['bridge', ...shuffle(LM_KEYS.filter((k) => k !== 'bridge'))], lmIdx: 0,
+    nextRow: 34, nextBld: NEAR_Z - 1, nextLamp: 5, nextTree: NEAR_Z, nextLM: attract ? 16 : 48, nextBin: 11, nextTractor: rand(80, 160),
+    // Real runs open with Wade's Bridge; the title-screen backdrop never shows it, so
+    // tapping RUN! doesn't give you a second bridge straight away.
+    lmZones: [], lmOrder: attract ? shuffle(LM_KEYS.filter((k) => k !== 'bridge')) : ['bridge', ...shuffle(LM_KEYS.filter((k) => k !== 'bridge'))], lmIdx: 0,
     shake: 0, rain: 0, rainTarget: 0, nextWeather: rand(25, 40), milestone: 250, killer: null, dyingT: 0, flash: 0,
   };
   G.scen.push({ k: 'welcome', x: -4.9, wz: 7 });
