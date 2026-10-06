@@ -62,14 +62,53 @@ const DEATH = {
   mega: ['Ran face-first into a MEGA JOBBIE.', 'That jobbie was the size of Schiehallion.', 'Ye cannae jump THAT, pal.'],
   small: ['Stood right in it.', 'Squelch. That\'s yer shoes ruined.', 'Didnae jump high enough.'],
   splat: ['Skited on a squashed one.', 'Slid through a pre-flattened beauty.', 'Someone else stood in that first.'],
+  bagged: ['Tripped over a bag someone "picked up".', 'Bagged it, then dumped it. Classic.'],
+  hang: ['Headbutted a bag of poo hanging from a tree.', 'Jumped straight intae the poo bag tree.'],
+  swing: ['Clotheslined by a swinging poo bag.', 'The poo bag swung. You didnae.'],
+  smear: ['Skidded right down a skid mark.', 'That skid mark went on forever.'],
 };
 const QUIPS = ['Och, that\'s mingin\'.', 'Help ma boab!', 'Pure honkin\'.', 'Yer maw\'s gonnae kill ye.', 'Every. Single. Time.', 'The Council will hear about this.', 'Smells like a Tuesday.'];
 
 // Landmarks on the left verge. Wade's Bridge always comes first.
-const LANDMARK_X = { bridge: -13, blackwatch: -7.2, distillery: -11, birks: -8.5, cows: -7.5, piper: -5.2, castle: -10, golf: -7.5 };
-const LANDMARK_W = { bridge: 9.5, blackwatch: 2, distillery: 7, birks: 5, cows: 3.5, piper: 1, castle: 5, golf: 3 };
+const LANDMARK_X = {
+  bridge: -13, blackwatch: -7.2, distillery: -11, birks: -8.5, cows: -7.5, piper: -5.2, castle: -10, golf: -7.5,
+  crannog: -10, taymouth: -11, dull: -5.8, yew: -7.5, footbridge: -12, rafting: -10,
+};
+const LANDMARK_W = {
+  bridge: 9.5, blackwatch: 2, distillery: 7, birks: 5, cows: 3.5, piper: 1, castle: 5, golf: 3,
+  crannog: 6, taymouth: 6.5, dull: 2.6, yew: 4, footbridge: 10, rafting: 6,
+};
+// Shown in the caption bar as each landmark goes by.
+const LANDMARK_INFO = {
+  bridge: ["Wade's Bridge", 'Built 1733 by General Wade. Still standing. Unlike you, soon.'],
+  blackwatch: ['Black Watch Memorial', 'The Black Watch first mustered here in 1740.'],
+  distillery: ['Aberfeldy Distillery', "Dewar's whisky, made here since the 1890s."],
+  birks: ["The Birks o' Aberfeldy", 'Burns wrote a song about these falls in 1787.'],
+  cows: ['Highland Coos', 'Hairy. Horny. Deeply unimpressed by your running.'],
+  piper: ['A Piper', 'Plays the same tune. All day. Every day.'],
+  castle: ['Castle Menzies', 'Clan Menzies seat, just over the river in Weem.'],
+  golf: ['Aberfeldy Golf Club', 'Mind the jobbies on the 7th green.'],
+  crannog: ['Scottish Crannog Centre', 'Iron Age houses on stilts, out on Loch Tay.'],
+  taymouth: ['Taymouth Castle', 'Kenmore. Queen Victoria popped by in 1842.'],
+  dull: ['Dull', 'Twinned with Boring, Oregon. Genuinely.'],
+  yew: ['Fortingall Yew', 'Maybe 2,000-5,000 years old. Seen a lot of poo.'],
+  footbridge: ['Aberfeldy Footbridge', 'Built 1992: one of the first plastic bridges in the world.'],
+  rafting: ['Grandtully Rapids', 'White-water rafting on the Tay. Cleaner than this pavement.'],
+};
+// First time each hazard turns up in a session, the caption bar explains it.
+const HAZARD_INFO = {
+  mega: ['MEGA JOBBIE!', 'Too big to jump. Swipe to dodge it.'],
+  hang: ['HANGING POO BAGS!', "Someone tied them to a tree. DON'T jump into them."],
+  swing: ['SWINGING POO BAG!', 'Time it, or jump it.'],
+  smear: ['SKID MARK!', 'A long one. Jump it or swerve.'],
+  bagged: ['BAGGED... AND LEFT', 'Picked up, then abandoned. Jump it.'],
+  dog: ['DUG ALERT!', "It's about to do its business."],
+};
+const LM_KEYS = Object.keys(LANDMARK_X);
 
-const POO = { splat: { h: 0.12 }, small: { h: 0.42 }, mega: { h: 99 } };
+const POO = { splat: { h: 0.12 }, small: { h: 0.42 }, bagged: { h: 0.4 }, mega: { h: 99 } };
+const HANG_LOW = 1.45; // bottom of a hanging bag: run under it, don't jump into it
+const SWING = { ay: 3.7, len: 3.05, amp: 0.37 };
 
 // ---------------------------------------------------------------- camera
 const CAM_BACK = 3;
@@ -165,12 +204,18 @@ function fitText(text, x, y, maxW, size, col, align = 'center') {
   ctx.fillText(text, x, y);
 }
 function brownSign(text, x, y, w, h = 44) {
-  // UK brown tourist-attraction sign
+  // UK brown tourist-attraction sign, drawn oversized so it reads on a phone
+  w *= 1.35; h = Math.max(h, 44) * 1.5;
+  // landmarks sit off to the left, so slide the sign along to keep it on screen
+  const m = ctx.getTransform(), pad = 6 * DPR;
+  const left = m.a * (x - w / 2) + m.e, right = m.a * (x + w / 2) + m.e;
+  if (left < pad) x += (pad - left) / m.a;
+  else if (right > canvas.width - pad) x -= (right - (canvas.width - pad)) / m.a;
   ctx.fillStyle = '#6b3a1f';
   rr(x - w / 2, y - h, w, h, 6); ctx.fill();
   ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
   rr(x - w / 2 + 4, y - h + 4, w - 8, h - 8, 4); ctx.stroke();
-  fitText(text, x, y - h / 2 + 2, w - 18, h * 0.55, '#fff');
+  fitText(text, x, y - h / 2 + 3, w - 22, h * 0.6, '#fff');
 }
 function flies(n, cxp, cyp, rx, ry, seed, size = 3) {
   const t = G.t;
@@ -366,19 +411,19 @@ const GRAV = 30, JUMP_V = 9.2;
 
 function newGame(attract) {
   G = {
-    attract, t: 0, dist: 0, speed: attract ? 6 : 9, bonus: 0, bags: 0, dodged: 0, score: 0,
+    attract, t: 0, dist: 0, speed: attract ? 6 : 10, bonus: 0, bags: 0, dodged: 0, score: 0,
     p: { lane: 1, x: 0, y: 0, vy: 0, air: false, fast: false, phase: 0, welly: 0, lastLane: -9, jumpBuf: 0 },
     objs: [], scen: [], blds: [], parts: [], floats: [], splats: [], drops: [],
     clouds: Array.from({ length: 6 }, () => ({ x: Math.random(), y: rand(0.03, 0.22), s: rand(0.6, 1.4), v: rand(0.004, 0.012) })),
     nextRow: 34, nextBld: NEAR_Z - 1, nextLamp: 5, nextTree: NEAR_Z, nextLM: 16, nextBin: 11, nextTractor: rand(80, 160),
-    lmZones: [], lmOrder: ['bridge', ...shuffle(['blackwatch', 'distillery', 'birks', 'cows', 'piper', 'castle', 'golf'])], lmIdx: 0,
+    lmZones: [], lmOrder: ['bridge', ...shuffle(LM_KEYS.filter((k) => k !== 'bridge'))], lmIdx: 0,
     shake: 0, rain: 0, rainTarget: 0, nextWeather: rand(25, 40), milestone: 250, killer: null, dyingT: 0, flash: 0,
   };
   G.scen.push({ k: 'welcome', x: -4.9, wz: 7 });
   fillWorld();
 }
 
-function diff() { return clamp(G.t / 110, 0, 1); }
+function diff() { return clamp(G.t / 90, 0, 1); }
 
 function fillWorld() {
   const horizon = G.dist + FAR_Z + 4;
@@ -392,7 +437,7 @@ function fillWorld() {
     const k = G.lmOrder[G.lmIdx++ % G.lmOrder.length];
     G.scen.push({ k, x: LANDMARK_X[k], wz: G.nextLM, seed: Math.random() * 10 });
     G.lmZones.push([G.nextLM - 3, G.nextLM + 3]);
-    G.nextLM += rand(40, 58);
+    G.nextLM += rand(34, 46);
   }
   while (G.nextTree < horizon) {
     const z = G.nextTree;
@@ -413,8 +458,8 @@ function fillWorld() {
   if (!G.attract) {
     while (G.nextRow < horizon) {
       spawnRow(G.nextRow);
-      const T = lerp(1.3, 0.62, diff());
-      G.nextRow += Math.max(6.5, G.speed * T);
+      const T = lerp(1.15, 0.5, diff());
+      G.nextRow += Math.max(6, G.speed * T);
     }
   }
   if (G.dist > G.nextTractor) {
@@ -446,6 +491,8 @@ function spawnRow(wz) {
     ['single', 3], ['double', 1.2 + d * 1.5], ['mega1', 2.4], ['mega2', 0.4 + d * 2.6],
     ['wall', 0.3 + d * 1.4], ['dog', 1.1], ['bags', 1.1], ['megaSmall', 0.4 + d * 2],
     ['welly', G.p.welly > 0 || G.t < 15 ? 0 : 0.22],
+    ['bagtree', G.t < 6 ? 0 : 1.3 + d], ['swing', G.t < 18 ? 0 : 0.7 + d * 1.4],
+    ['smear', 0.9 + d], ['gauntlet', d < 0.35 ? 0 : d * 1.6],
   ];
   let r = Math.random() * table.reduce((s, e) => s + e[1], 0);
   let kind = table[0][0];
@@ -454,13 +501,13 @@ function spawnRow(wz) {
   switch (kind) {
     case 'single': {
       const l = lanes[0];
-      addPoo(l, wz, Math.random() < 0.35 ? 'splat' : 'small');
+      addPoo(l, wz, pick(['splat', 'small', 'small', 'bagged']));
       if (Math.random() < 0.5) bagArc(l, wz); else bagLine(lanes[1], wz - 2, 3);
       break;
     }
     case 'double':
-      addPoo(lanes[0], wz, 'small'); addPoo(lanes[1], wz, Math.random() < 0.5 ? 'splat' : 'small');
-      addBag(lanes[2], wz);
+      addPoo(lanes[0], wz, pick(['small', 'bagged'])); addPoo(lanes[1], wz, pick(['splat', 'small']));
+      if (Math.random() < d) addPoo(lanes[2], wz + 0.8, 'splat'); else addBag(lanes[2], wz);
       break;
     case 'mega1':
       addPoo(lanes[0], wz, 'mega');
@@ -488,6 +535,28 @@ function spawnRow(wz) {
       break;
     case 'welly':
       G.objs.push({ k: 'welly', lane: lanes[0], x: laneX(lanes[0]), wz, y: 0.6 });
+      break;
+    case 'bagtree': {
+      // Bags hang over two lanes. A splat under one of them means you can't run it or jump it.
+      const hung = Math.random() < 0.4 + d * 0.4 ? [lanes[0], lanes[1]] : [lanes[0]];
+      G.objs.push({ k: 'hang', wz, seed: Math.random() * 10, bags: hung.map((l) => ({ lane: l, x: laneX(l) })) });
+      addPoo(lanes[0], wz, pick(['splat', 'small']));
+      if (Math.random() < 0.5) addPoo(lanes[2], wz, 'small'); else bagArc(lanes[2], wz);
+      break;
+    }
+    case 'swing':
+      G.objs.push({ k: 'swing', wz, seed: Math.random() * 10, ph: rand(0, TAU), w: TAU / rand(1.5, 2.1) });
+      break;
+    case 'smear':
+      G.objs.push({ k: 'smear', lane: lanes[0], x: laneX(lanes[0]), wz, len: rand(3, 3 + d * 2.5), seed: Math.random() * 10 });
+      if (Math.random() < d) addPoo(lanes[1], wz + 1, pick(['small', 'bagged']));
+      break;
+    case 'gauntlet':
+      // Only lanes[2] gets through, and only with a jump.
+      addPoo(lanes[0], wz, 'mega');
+      G.objs.push({ k: 'hang', wz, seed: Math.random() * 10, bags: [{ lane: lanes[1], x: laneX(lanes[1]) }] });
+      addPoo(lanes[1], wz, 'small');
+      addPoo(lanes[2], wz, pick(['splat', 'small', 'bagged']));
       break;
   }
 }
@@ -591,7 +660,7 @@ function stomp(o) {
 
 function die(o) {
   mode = 'dying';
-  G.killer = o.size;
+  G.killer = o.size || o.k;
   G.dyingT = 0;
   G.shake = 26;
   G.flash = 1;
@@ -611,10 +680,10 @@ function update(dt) {
   G.t += dt;
   const p = G.p;
   if (mode === 'play' || G.attract) {
-    if (!G.attract) G.speed = Math.min(27, 9 + G.t * 0.17);
+    if (!G.attract) G.speed = Math.min(30, 10 + G.t * 0.21);
     const prev = G.dist;
     G.dist += G.speed * dt;
-    Sound.setTempo(0.85 + (G.speed - 9) / 18 * 0.45);
+    Sound.setTempo(0.85 + (G.speed - 10) / 20 * 0.45);
 
     // player
     p.x += (laneX(p.lane) - p.x) * Math.min(1, dt * 17);
@@ -634,7 +703,7 @@ function update(dt) {
       if (p.welly <= 0) floater('WELLIES AFF', 'Back tae normal shoes', { color: '#fff', size: 34 });
     }
 
-    if (!G.attract) updateObjs(dt, prev);
+    if (!G.attract) { updateObjs(dt, prev); updateCaptions(); }
 
     for (const s of G.scen) if (s.moving) s.wz += s.moving * dt;
 
@@ -685,6 +754,19 @@ function update(dt) {
   for (const d of G.drops) { d.y += d.v * dt; d.x -= d.v * 0.15 * dt; if (d.y > H) { d.y = rand(-60, -10); d.x = rand(0, W * 1.15); } }
 }
 
+function swingPos(o) {
+  const th = SWING.amp * Math.sin(G.t * o.w + o.ph);
+  const kx = SWING.len * Math.sin(th), ky = SWING.ay - SWING.len * Math.cos(th);
+  return { th, x: kx, y: ky - 0.3, top: ky - 0.02 }; // knot (kx,ky); bag body hangs below it
+}
+function bootBag(x, y, z) {
+  const [sx, sy] = P(x, y, Math.max(z, 0));
+  burst(sx, sy, 26, ['#1f2a1f', '#3b4a3b', ...POO_COLS], 1.1);
+  G.bonus += 30;
+  floater('+30', 'BOOTED IT!', { color: '#ffe36b' });
+  Sound.sfx.stomp();
+}
+
 function updateObjs(dt, prev) {
   const p = G.p;
   for (const o of G.objs) {
@@ -709,6 +791,33 @@ function updateObjs(dt, prev) {
           G.bonus += 25; floater('+25', pick(EXCL.close), { color: '#7dff7a' }); Sound.sfx.close();
         }
       }
+    } else if (o.k === 'hang') {
+      for (const b of o.bags) {
+        if (b.dead || !overlap || Math.abs(b.x - p.x) > 0.5 || p.y + 1.3 < HANG_LOW) continue;
+        if (p.welly > 0) { b.dead = true; bootBag(b.x, 1.7, zNow); continue; }
+        die(o); return;
+      }
+      if (!o.passed && zNow < -0.35) { o.passed = true; G.dodged += o.bags.length; }
+    } else if (o.k === 'swing') {
+      const sw = swingPos(o);
+      if (!o.dead && overlap && Math.abs(sw.x - p.x) < 0.48 && p.y < sw.top) {
+        if (p.welly > 0) { o.dead = true; bootBag(sw.x, sw.y, zNow); continue; }
+        die(o); return;
+      }
+      if (!o.passed && zNow < -0.35) {
+        o.passed = true; G.dodged++;
+        if (Math.abs(sw.x - p.x) < 1.1) { G.bonus += 20; floater('+20', pick(EXCL.close), { color: '#7dff7a' }); Sound.sfx.close(); }
+      }
+    } else if (o.k === 'smear') {
+      const on = zNow < 0.35 && zNow + o.len > -0.35 && dx < 0.5;
+      if (on && p.y < 0.1) {
+        if (p.welly > 0) { /* wellies don't care */ } else { die(o); return; }
+      }
+      if (on && p.y >= 0.1) o.jumped = true;
+      if (!o.passed && zNow + o.len < -0.35) {
+        o.passed = true; G.dodged++;
+        if (o.jumped) { G.bonus += 15; floater('+15', 'LANG LOUP!'); }
+      }
     } else if (o.k === 'bag' || o.k === 'welly') {
       if (overlap && dx < 0.62 && o.y > p.y - 0.35 && o.y < p.y + 1.55) {
         o.dead = true;
@@ -726,6 +835,26 @@ function updateObjs(dt, prev) {
           vibrate(40);
         }
       }
+    }
+  }
+}
+
+const introduced = new Set();
+function updateCaptions() {
+  for (const s of G.scen) {
+    const z = s.wz - G.dist;
+    if (!s.told && LANDMARK_INFO[s.k] && z < 26 && z > 0) {
+      s.told = true;
+      showCaption(LANDMARK_INFO[s.k][0], LANDMARK_INFO[s.k][1], false);
+    }
+  }
+  for (const o of G.objs) {
+    const key = o.k === 'poo' ? o.size : o.k;
+    if (!HAZARD_INFO[key] || introduced.has(key)) continue;
+    const z = o.wz - G.dist;
+    if (z < 34 && z > 4 && (o.k !== 'dog' || o.state !== 'wait')) {
+      introduced.add(key);
+      showCaption(HAZARD_INFO[key][0], HAZARD_INFO[key][1], true);
     }
   }
 }
@@ -827,6 +956,26 @@ function drawGround() {
   quadGround(0.48, 0.52, NEAR_Z, FAR_Z, jc);
   // building base shadow
   quadGround(WALL_X - 0.12, WALL_X, NEAR_Z, FAR_Z, 'rgba(0,0,0,0.18)');
+  // skid marks lie flat on the pavement
+  for (const o of G.objs) {
+    if (o.k !== 'smear') continue;
+    const z = o.wz - G.dist;
+    if (z + o.len < NEAR_Z || z > FAR_Z) continue;
+    // one smooth streak, wobbly edges, tapering at both ends
+    const n = 16, l = [], r = [];
+    for (let i = 0; i <= n; i++) {
+      const zz = Math.max(z + (o.len * i) / n, NEAR_Z);
+      const taper = Math.sin((i / n) * Math.PI) ** 0.5;
+      const w = (0.16 + 0.07 * Math.sin(i * 1.3 + o.seed)) * taper + 0.03;
+      const off = Math.sin(i * 0.5 + o.seed) * 0.08;
+      l.push(P(o.x + off - w, 0, zz)); r.unshift(P(o.x + off + w, 0, zz));
+    }
+    poly(l.concat(r), '#6b3d1a');
+    const c = [];
+    for (let i = 1; i < n; i++) c.push(P(o.x + Math.sin(i * 0.5 + o.seed) * 0.08 - 0.03, 0, Math.max(z + (o.len * i) / n, NEAR_Z)));
+    for (let i = n - 1; i >= 1; i--) c.push(P(o.x + Math.sin(i * 0.5 + o.seed) * 0.08 + 0.05, 0, Math.max(z + (o.len * i) / n, NEAR_Z)));
+    poly(c, '#3b2412');
+  }
 }
 
 function drawBuildings() {
@@ -867,7 +1016,20 @@ function drawPoo(o) {
   ctx.save();
   ctx.scale(sc, sc);
   ell(0, 0, o.size === 'mega' ? 62 : 32, o.size === 'mega' ? 12 : 6, 'rgba(0,0,0,0.25)');
-  if (o.size === 'splat') {
+  if (o.size === 'bagged') {
+    // a full bag, knotted and left on the pavement
+    ctx.fillStyle = '#1d261d'; ctx.strokeStyle = '#0b0f0b'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-26, -4); ctx.quadraticCurveTo(-34, -30, -10, -36); ctx.lineTo(-6, -44); ctx.lineTo(-16, -56);
+    ctx.lineTo(0, -46); ctx.lineTo(16, -56); ctx.lineTo(6, -44); ctx.lineTo(10, -36);
+    ctx.quadraticCurveTo(34, -30, 26, -4); ctx.quadraticCurveTo(0, 4, -26, -4); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ell(-12, -22, 5, 9, 'rgba(255,255,255,0.22)');
+    ell(8, -14, 9, 6, 'rgba(110,62,26,0.55)');
+    fitText('WHY?!', 0, -78, 70, 22, '#fff');
+    flies(3, 0, -40, 34, 14, o.seed, 2.8);
+    stink(2, 54, -50, o.seed, 0.45);
+  } else if (o.size === 'splat') {
     ctx.fillStyle = '#5a3214';
     ctx.beginPath();
     for (let i = 0; i <= 12; i++) {
@@ -1349,15 +1511,209 @@ function drawGolf(s) {
   brownSign('ABERFELDY GOLF CLUB', 0, -240, 280, 44);
 }
 
+// Hanging poo bags: a kerbside tree with a branch reaching over the pavement.
+const BAG_TREE_X = KERB_X - 0.3;
+function bagTree(reach) {
+  const t = G.t;
+  ctx.fillStyle = '#4a3423';
+  ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(-10, -330); ctx.lineTo(10, -330); ctx.lineTo(16, 0); ctx.fill();
+  ctx.strokeStyle = '#4a3423'; ctx.lineCap = 'round';
+  ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(0, -300); ctx.quadraticCurveTo(reach * 0.5, -360, reach, -372 + Math.sin(t * 1.3) * 2); ctx.stroke();
+  ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(reach * 0.55, -350); ctx.lineTo(reach * 0.75, -420); ctx.stroke();
+  const g1 = mix('#4f8a35', '#3f6a35', G.rain), g2 = mix('#6aa944', '#557a45', G.rain);
+  for (const [x, y, r] of [[-20, -360, 60], [40, -410, 55], [reach * 0.45, -400, 58], [reach * 0.8, -420, 50], [reach, -390, 46]]) {
+    ell(x, y, r, r * 0.8, g1); ell(x - r * 0.3, y - r * 0.25, r * 0.6, r * 0.5, g2);
+  }
+  // nailed-on sign
+  ctx.fillStyle = '#fff'; rr(-60, -210, 120, 56, 5); ctx.fill();
+  ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 4; rr(-56, -206, 112, 48, 4); ctx.stroke();
+  fitText('THE POO', 0, -192, 100, 20, '#c8102e');
+  fitText('BAG TREE', 0, -170, 100, 20, '#c8102e');
+}
+function pooBag(swing) {
+  ctx.save();
+  ctx.rotate(swing);
+  ctx.scale(1.3, 1.3);
+  ctx.fillStyle = '#1d261d'; ctx.strokeStyle = '#0b0f0b'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-6, 0); ctx.lineTo(-14, 8); ctx.quadraticCurveTo(-34, 30, -26, 52); ctx.quadraticCurveTo(0, 66, 26, 52);
+  ctx.quadraticCurveTo(34, 30, 14, 8); ctx.lineTo(6, 0); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ell(-12, 28, 5, 10, 'rgba(255,255,255,0.2)');
+  ell(6, 44, 10, 6, 'rgba(110,62,26,0.6)');
+  flies(2, 0, 30, 34, 16, swing * 10, 2.6);
+  ctx.restore();
+}
+function drawHang(o) {
+  const t = G.t;
+  const reach = (1.55 - BAG_TREE_X) * 100;
+  bagTree(reach);
+  o.bags.forEach((b, i) => {
+    if (b.dead) return;
+    const lx = (b.x - BAG_TREE_X) * 100;
+    const u = lx / reach; // the branch is a quadratic curve with x linear in u
+    const branchY = (1 - u) ** 2 * -300 + 2 * u * (1 - u) * -360 + u * u * -372;
+    const knotY = -(HANG_LOW + 0.62) * 100;
+    const sway = Math.sin(t * 2.2 + i * 1.3 + o.seed) * 0.08;
+    ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(lx, branchY); ctx.lineTo(lx + Math.sin(sway) * 60, knotY); ctx.stroke();
+    ctx.save(); ctx.translate(lx + Math.sin(sway) * 60, knotY); pooBag(sway); ctx.restore();
+  });
+}
+function drawSwing(o) {
+  if (o.dead) return;
+  const sw = swingPos(o);
+  const reach = (1.55 - BAG_TREE_X) * 100;
+  bagTree(reach);
+  const ax = (0 - BAG_TREE_X) * 100, ay = -SWING.ay * 100;
+  const kx = (sw.x - BAG_TREE_X) * 100, ky = -(sw.y + 0.3) * 100;
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(kx, ky); ctx.stroke();
+  ctx.save(); ctx.translate(kx, ky); pooBag(-sw.th); ctx.restore();
+  // motion lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 3;
+  const dir = Math.cos(G.t * o.w + o.ph) > 0 ? -1 : 1;
+  for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(kx + dir * (34 + i * 10), ky + 20 + i * 12); ctx.lineTo(kx + dir * (60 + i * 14), ky + 20 + i * 12); ctx.stroke(); }
+}
+
+function drawCrannog() {
+  const t = G.t;
+  ctx.fillStyle = '#3d6f8f'; ctx.fillRect(-340, -70, 680, 70);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3;
+  for (let i = 0; i < 6; i++) { const x = -320 + ((i * 130 + t * 30) % 640); ctx.beginPath(); ctx.moveTo(x, -30 - (i % 2) * 18); ctx.lineTo(x + 40, -30 - (i % 2) * 18); ctx.stroke(); }
+  ctx.fillStyle = '#5a4030';
+  for (let x = -110; x <= 110; x += 22) ctx.fillRect(x - 4, -110, 8, 100);
+  ctx.fillRect(-140, -118, 280, 14);
+  ctx.fillRect(140, -112, 200, 10); // walkway to shore
+  ctx.fillStyle = '#8a6a48'; ctx.fillRect(-100, -200, 200, 84);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 3;
+  for (let x = -90; x < 100; x += 18) { ctx.beginPath(); ctx.moveTo(x, -200); ctx.lineTo(x, -118); ctx.stroke(); }
+  ctx.fillStyle = '#c9a85a';
+  ctx.beginPath(); ctx.moveTo(-130, -196); ctx.lineTo(0, -330); ctx.lineTo(130, -196); ctx.fill();
+  ctx.strokeStyle = 'rgba(120,90,30,0.5)';
+  for (let i = -5; i <= 5; i++) { ctx.beginPath(); ctx.moveTo(i * 24, -196); ctx.lineTo(0, -326); ctx.stroke(); }
+  ctx.fillStyle = '#2b1d14'; rr(-18, -170, 36, 54, 14); ctx.fill();
+  for (let i = 0; i < 3; i++) { const ph = (t * 0.4 + i / 3) % 1; ell(10 + ph * 30, -340 - ph * 70, 10 + ph * 18, 8 + ph * 14, `rgba(200,200,200,${0.5 * (1 - ph)})`); }
+  brownSign('SCOTTISH CRANNOG CENTRE', 0, -380, 320, 48);
+}
+
+function drawTaymouth() {
+  ell(0, 0, 330, 16, 'rgba(0,0,0,0.25)');
+  const stone = '#a6a29a', dark = '#8c887f';
+  const crenel = (x0, x1, y) => { ctx.fillStyle = stone; for (let x = x0; x < x1; x += 20) ctx.fillRect(x, y - 14, 12, 14); };
+  ctx.fillStyle = stone; ctx.fillRect(-300, -230, 600, 230);
+  crenel(-300, 300, -230);
+  ctx.fillStyle = dark; ctx.fillRect(-90, -400, 180, 400);
+  crenel(-90, 90, -400);
+  for (const tx of [-300, 300, -90, 90]) {
+    ctx.fillStyle = dark; ctx.fillRect(tx - 18, (Math.abs(tx) > 100 ? -280 : -450), 36, Math.abs(tx) > 100 ? 280 : 450);
+    ctx.beginPath(); ctx.moveTo(tx - 24, Math.abs(tx) > 100 ? -280 : -450); ctx.lineTo(tx, Math.abs(tx) > 100 ? -330 : -500); ctx.lineTo(tx + 24, Math.abs(tx) > 100 ? -280 : -450); ctx.fill();
+  }
+  ctx.fillStyle = '#3a4d63';
+  for (let x = -260; x <= 260; x += 52) for (const y of [-190, -110]) if (Math.abs(x) > 100) { ctx.beginPath(); ctx.moveTo(x - 12, y + 40); ctx.lineTo(x - 12, y); ctx.arc(x, y, 12, Math.PI, 0); ctx.lineTo(x + 12, y + 40); ctx.fill(); }
+  for (const y of [-350, -270, -190]) for (const x of [-40, 0, 40]) { ctx.beginPath(); ctx.moveTo(x - 10, y + 40); ctx.lineTo(x - 10, y); ctx.arc(x, y, 10, Math.PI, 0); ctx.lineTo(x + 10, y + 40); ctx.fill(); }
+  ctx.fillStyle = '#2b1d14'; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-30, -70); ctx.arc(0, -70, 30, Math.PI, 0); ctx.lineTo(30, 0); ctx.fill();
+  ctx.fillStyle = '#c8102e'; ctx.fillRect(-2, -560, 4, 60);
+  ctx.beginPath(); ctx.moveTo(2, -560); ctx.lineTo(50, -548 + Math.sin(G.t * 5) * 4); ctx.lineTo(2, -536); ctx.fill();
+  brownSign('TAYMOUTH CASTLE', 0, -600, 300, 48);
+}
+
+function drawDull() {
+  // the real village sign, more or less
+  ctx.fillStyle = '#555'; ctx.fillRect(-90, -150, 10, 150); ctx.fillRect(80, -150, 10, 150);
+  ctx.fillStyle = '#fff'; rr(-130, -330, 260, 190, 10); ctx.fill();
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 6; rr(-122, -322, 244, 174, 8); ctx.stroke();
+  fitText('DULL', 0, -275, 220, 74, '#111');
+  ctx.fillStyle = '#111'; ctx.fillRect(-100, -236, 200, 3);
+  fitText('Paired with', 0, -214, 200, 22, '#333');
+  fitText('BORING · OREGON', 0, -184, 220, 28, '#1d3f8a');
+  fitText('(and Bland, Australia)', 0, -160, 200, 16, '#666');
+}
+
+function drawYew() {
+  ell(0, 0, 200, 14, 'rgba(0,0,0,0.25)');
+  // the walled enclosure
+  ctx.fillStyle = '#8f8a80'; ctx.fillRect(-190, -50, 380, 50);
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 2;
+  for (let x = -190; x < 190; x += 30) { ctx.beginPath(); ctx.moveTo(x, -50); ctx.lineTo(x, 0); ctx.stroke(); }
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 3;
+  for (let x = -180; x <= 180; x += 20) { ctx.beginPath(); ctx.moveTo(x, -50); ctx.lineTo(x, -90); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(-180, -88); ctx.lineTo(180, -88); ctx.stroke();
+  // gnarled trunk + huge dark canopy
+  ctx.fillStyle = '#5a3a28';
+  ctx.beginPath(); ctx.moveTo(-70, -50); ctx.quadraticCurveTo(-40, -150, -80, -230); ctx.lineTo(-20, -200); ctx.lineTo(10, -260); ctx.lineTo(40, -190); ctx.lineTo(90, -230); ctx.quadraticCurveTo(50, -140, 70, -50); ctx.fill();
+  for (const [x, y, r] of [[-120, -260, 90], [0, -320, 110], [120, -260, 90], [-60, -220, 70], [70, -210, 70], [0, -400, 70]]) {
+    ell(x, y, r, r * 0.75, '#2f4a2a'); ell(x - r * 0.2, y - r * 0.2, r * 0.6, r * 0.45, '#3d5e34');
+  }
+  brownSign('FORTINGALL YEW', 0, -480, 280, 46);
+}
+
+function drawFootbridge() {
+  const t = G.t;
+  ctx.fillStyle = '#3d6f8f'; ctx.fillRect(-520, -50, 1040, 50);
+  ctx.fillStyle = '#74b84a'; ell(-380, -50, 160, 20, '#74b84a'); ell(380, -50, 160, 20, '#74b84a');
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3;
+  for (let i = 0; i < 6; i++) { const x = -300 + ((i * 110 + t * 40) % 600); ctx.beginPath(); ctx.moveTo(x, -22); ctx.lineTo(x + 34, -22); ctx.stroke(); }
+  // deck
+  ctx.fillStyle = '#f2f2ee'; ctx.fillRect(-500, -150, 1000, 16);
+  ctx.fillStyle = '#c9c9c2'; ctx.fillRect(-500, -134, 1000, 6);
+  // A-frame pylons and fanned cables
+  for (const px of [-250, 250]) {
+    ctx.strokeStyle = '#f2f2ee'; ctx.lineWidth = 14;
+    ctx.beginPath(); ctx.moveTo(px - 40, -40); ctx.lineTo(px, -430); ctx.lineTo(px + 40, -40); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2.5;
+    for (let i = 1; i <= 6; i++) {
+      ctx.beginPath(); ctx.moveTo(px, -420 + i * 8); ctx.lineTo(px - i * 40, -150); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px, -420 + i * 8); ctx.lineTo(px + i * 40, -150); ctx.stroke();
+    }
+  }
+  // golfer crossing
+  const gx = ((t * 40) % 800) - 400;
+  ell(gx, -205, 9, 10, '#f1c7a5'); ctx.fillStyle = '#e45b9c'; ctx.fillRect(gx - 9, -195, 18, 26); ctx.fillStyle = '#333'; ctx.fillRect(gx - 7, -169, 14, 18);
+  brownSign('ABERFELDY FOOTBRIDGE · 1992', 0, -470, 380, 48);
+}
+
+function drawRafting() {
+  const t = G.t;
+  const wg = ctx.createLinearGradient(0, -120, 0, 0);
+  wg.addColorStop(0, '#4a86a8'); wg.addColorStop(1, '#2a5470');
+  ctx.fillStyle = wg; ctx.fillRect(-330, -120, 660, 120);
+  ctx.fillStyle = '#6e6458'; ell(-200, -40, 50, 24, '#6e6458'); ell(170, -70, 40, 20, '#6e6458');
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 4;
+  for (let i = 0; i < 10; i++) {
+    const x = -300 + ((i * 70 + t * 120) % 600), y = -20 - (i % 4) * 24;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 15, y - 12, x + 30, y); ctx.stroke();
+  }
+  // raft bouncing down the rapids
+  const bob = Math.sin(t * 6) * 8, tilt = Math.sin(t * 4) * 0.12;
+  ctx.save(); ctx.translate(0, -70 + bob); ctx.rotate(tilt);
+  ctx.fillStyle = '#f5c400'; rr(-110, -24, 220, 44, 22); ctx.fill();
+  ctx.strokeStyle = '#b08a00'; ctx.lineWidth = 4; rr(-110, -24, 220, 44, 22); ctx.stroke();
+  const helmets = ['#c8102e', '#1565c0', '#2e7d32', '#ff9800'];
+  for (let i = 0; i < 4; i++) {
+    const x = -75 + i * 50;
+    ctx.fillStyle = '#ff5722'; ctx.fillRect(x - 12, -60, 24, 36);
+    ell(x, -70, 12, 12, '#f1c7a5'); ell(x, -76, 13, 8, helmets[i]);
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
+    const a = Math.sin(t * 6 + i) * 0.6;
+    ctx.beginPath(); ctx.moveTo(x, -50); ctx.lineTo(x + Math.sin(a) * 50, -50 + Math.cos(a) * 60); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.font = `34px ${FONT}`; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 6; ctx.textAlign = 'center';
+  ctx.strokeText('WHEEEE!', 60, -190 + bob); ctx.fillText('WHEEEE!', 60, -190 + bob);
+  brownSign('GRANDTULLY RAPIDS', 0, -260, 300, 46);
+}
+
 function drawShopSign(shop) {
-  ctx.strokeStyle = '#151515'; ctx.lineWidth = 6; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(0, -80); ctx.lineTo(-175, -80); ctx.moveTo(0, -52); ctx.lineTo(-30, -80); ctx.stroke();
+  ctx.strokeStyle = '#151515'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, -96); ctx.lineTo(-195, -96); ctx.moveTo(0, -60); ctx.lineTo(-36, -96); ctx.stroke();
   ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(-160, -80); ctx.lineTo(-160, -70); ctx.moveTo(-30, -80); ctx.lineTo(-30, -70); ctx.stroke();
-  ctx.fillStyle = shop.sign; rr(-175, -70, 160, 70, 6); ctx.fill();
-  ctx.strokeStyle = shop.accent; ctx.lineWidth = 4; rr(-170, -65, 150, 60, 4); ctx.stroke();
-  fitText(shop.name, -95, -42, 136, 26, shop.text);
-  fitText(shop.sub, -95, -18, 136, 12, shop.text);
+  ctx.beginPath(); ctx.moveTo(-180, -96); ctx.lineTo(-180, -86); ctx.moveTo(-34, -96); ctx.lineTo(-34, -86); ctx.stroke();
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; rr(-191, -82, 180, 86, 8); ctx.fill();
+  ctx.fillStyle = shop.sign; rr(-195, -86, 180, 86, 8); ctx.fill();
+  ctx.strokeStyle = shop.accent; ctx.lineWidth = 5; rr(-189, -80, 168, 74, 5); ctx.stroke();
+  fitText(shop.name, -105, -52, 156, 36, shop.text);
+  fitText(shop.sub, -105, -21, 152, 17, shop.text);
 }
 
 function drawShadow(x, z, rx, alpha) {
@@ -1374,9 +1730,8 @@ function collectSprites() {
   for (const b of G.blds) {
     const z = b.z0 - D + 0.8;
     if (z < b.z1 - D && z > 1.5) {
-      add(z, () => sprite(WALL_X, 2.9, z, 2, () => {
-        ctx.globalAlpha *= clamp((z - 1.5) / 4, 0, 1);
-        ctx.scale(0.8, 0.8);
+      add(z, () => sprite(WALL_X, 3.0, z, 2.2, () => {
+        ctx.globalAlpha *= clamp((z - 1.5) / 3.5, 0, 1);
         drawShopSign(b.shop);
       }));
     }
@@ -1389,6 +1744,7 @@ function collectSprites() {
       lamp: drawLamp, tree: drawTree, welcome: drawWelcome, bin: drawBin, tractor: drawTractor,
       bridge: drawBridge, blackwatch: drawBlackWatch, distillery: drawDistillery, birks: drawBirks,
       cows: drawCows, piper: drawPiper, castle: drawCastle, golf: drawGolf,
+      crannog: drawCrannog, taymouth: drawTaymouth, dull: drawDull, yew: drawYew, footbridge: drawFootbridge, rafting: drawRafting,
     };
     const fn = fns[s.k];
     if (fn) add(z, () => sprite(s.x, 0, z, half, () => { ctx.scale(big, big); fn(s); }));
@@ -1400,6 +1756,9 @@ function collectSprites() {
     else if (o.k === 'bag') add(z, () => { drawShadow(o.x, z, 0.15, 0.15); sprite(o.x, o.y, z, 0.5, () => drawBag(o)); });
     else if (o.k === 'welly') add(z, () => { drawShadow(o.x, z, 0.3, 0.2); sprite(o.x, o.y, z, 0.6, () => drawWelly(o)); });
     else if (o.k === 'dog' && o.state !== 'wait') add(z, () => sprite(o.x, 0, z, 1, () => drawDog(o)));
+    else if (o.k === 'hang') add(z + 0.05, () => sprite(BAG_TREE_X, 0, z, 4, () => drawHang(o)));
+    else if (o.k === 'swing') add(z + 0.05, () => sprite(BAG_TREE_X, 0, z, 4, () => drawSwing(o)));
+    else if (o.k === 'smear') add(z + o.len * 0.5, () => sprite(o.x, 0, z + o.len * 0.5, 1, () => { flies(3, 0, -30, 40, 12, o.seed, 3); stink(2, 50, -10, o.seed, 0.45); }));
   }
   add(0.001, () => {
     const p = G.p;
@@ -1531,6 +1890,19 @@ function updateHud() {
 const screens = ['title', 'over', 'board', 'pause'];
 function show(id) { for (const s of screens) $(s).classList.toggle('hidden', s !== id); }
 
+const cap = { root: $('caption'), title: $('capTitle'), fact: $('capFact'), timer: 0 };
+function showCaption(title, fact, warn) {
+  cap.title.textContent = title;
+  cap.fact.textContent = fact;
+  cap.root.classList.toggle('warn', !!warn);
+  cap.root.classList.remove('hidden', 'show');
+  void cap.root.offsetWidth; // restart the slide-in animation
+  cap.root.classList.add('show');
+  clearTimeout(cap.timer);
+  cap.timer = setTimeout(hideCaption, warn ? 3200 : 3600);
+}
+function hideCaption() { clearTimeout(cap.timer); cap.root.classList.add('hidden'); cap.root.classList.remove('show'); }
+
 function startGame() {
   Sound.init();
   newGame(false);
@@ -1563,6 +1935,7 @@ let saved = false;
 function gameOver() {
   mode = 'over';
   hud.pause.classList.add('hidden');
+  hideCaption();
   const isBest = G.score > best;
   if (isBest) { best = G.score; store.set('ajd_best', String(best)); }
   $('overTitle').textContent = isBest && G.score > 0 ? 'NEW BEST!' : 'SPLAT!';
@@ -1650,6 +2023,7 @@ hud.pause.addEventListener('click', pause);
 
 function goTitle() {
   mode = 'title';
+  hideCaption();
   newGame(true);
   hud.root.classList.add('hidden');
   hud.pause.classList.add('hidden');
@@ -1683,5 +2057,5 @@ if (document.fonts && document.fonts.load) document.fonts.load(`20px "Luckiest G
 requestAnimationFrame(frame);
 
 // tiny hook for automated smoke tests
-window.__ajd = { get state() { return G; }, get mode() { return mode; }, startGame, move, jump };
+window.__ajd = { get state() { return G; }, get mode() { return mode; }, startGame, move, jump, spawnRow };
 })();

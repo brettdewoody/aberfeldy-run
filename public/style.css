@@ -84,6 +84,31 @@ html, body {
   padding: 0;
 }
 
+/* Landmark / hazard caption */
+.caption {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 420px;
+  padding: 8px 14px 7px;
+  border-radius: 14px;
+  border: 3px solid #fff;
+  background: #6b3a1f;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, .35);
+  text-align: center;
+  pointer-events: none;
+  z-index: 5;
+}
+.caption.show { animation: capIn .3s cubic-bezier(.2, 1.5, .5, 1); }
+@keyframes capIn { from { transform: translate(-50%, 120%); } to { transform: translate(-50%, 0); } }
+.caption .cap-title { font-family: var(--font); font-size: 24px; line-height: 1.1; color: #fff; }
+.caption .cap-fact { font-size: 14px; font-weight: 700; color: #ffe9c9; margin-top: 2px; }
+.caption.warn { background: var(--red); border-color: var(--gold); }
+.caption.warn .cap-title { color: var(--gold); font-size: 26px; }
+.caption.warn .cap-fact { color: #fff; }
+
 /* Screens */
 .screen {
   position: absolute;

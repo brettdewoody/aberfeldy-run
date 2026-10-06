@@ -14,12 +14,21 @@ with Schiehallion behind you the whole way.
 | Drop fast | Swipe ↓ | ↓ / S |
 | Pause | ❚❚ button | P / Esc |
 
-- **Jobbies** and **squashed ones** can be jumped.
+- **Jobbies**, **squashed ones** and **bagged-and-dumped** ones can be jumped.
 - **MEGA JOBBIES** (the ones with angry eyes) are too big to jump. Change lanes to get past them.
+- **Hanging poo bags** on the poo bag tree: run underneath, but don't jump into them.
+- **Swinging poo bags** sweep across the pavement. Time your lane, or jump them.
+- **Skid marks** are long. Jump them or swerve.
 - Scottie dogs run out and leave fresh ones in front of you.
-- Each 🟢 **poo bag** is worth 10 points. Hurdles (+10), close shaves past a mega (+25) and stomps also add points.
-- 🥾 **Golden wellies** give 6 seconds of stomping through everything.
+- Each 🟢 **poo bag** is worth 10 points. Hurdles, close shaves and stomps also add points.
+- 🥾 **Golden wellies** give 6 seconds of stomping through everything, hanging bags included.
 - It gets faster the longer you go. Sometimes it rains. This is Scotland.
+
+Landmarks you pass include Wade's Bridge, the Black Watch Memorial, the Birks o' Aberfeldy,
+Aberfeldy Distillery, Castle Menzies, the Aberfeldy Footbridge, Taymouth Castle, the Scottish
+Crannog Centre, the Fortingall Yew, Dull (twinned with Boring), the Grandtully rapids,
+the golf club, a piper and some Highland coos. A caption at the bottom of the screen
+names each one as you go by.
 
 When you're done, enter 3 initials. The leaderboard shows the **Top 10** only.
 
