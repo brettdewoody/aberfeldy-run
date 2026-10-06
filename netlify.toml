@@ -1,0 +1,5 @@
+# Netlify: static game from public/ + the leaderboard function at /api/scores.
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+  command = ""

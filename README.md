@@ -23,27 +23,52 @@ with Schiehallion behind you the whole way.
 
 When you're done, enter 3 initials. The leaderboard shows the **Top 10** only.
 
-## Running it
+## Deploying (recommended: Netlify, free)
 
-Needs Node 18+. There are no dependencies.
+Netlify hosts the game and the shared Top 10 together. Scores are stored in
+[Netlify Blobs](https://docs.netlify.com/blobs/overview/), so there's no database to set up.
+
+1. Sign in at [netlify.com](https://app.netlify.com) with GitHub.
+2. **Add new site → Import an existing project → GitHub →** pick `aberfeldy-run`.
+3. Leave every setting as it is (`netlify.toml` already has them) and click **Deploy**.
+
+You get a URL like `https://aberfeldy-jobbie-dash.netlify.app` (you can rename it under Site settings).
+Every push to `main` redeploys automatically. The leaderboard screen should say
+**"Global leaderboard · all of Aberfeldy"**.
+
+### Alternative: GitHub Pages (no extra account, per-device scores)
+
+GitHub Pages only serves static files, so each phone keeps its **own** Top 10 there.
+To turn it on:
+
+1. Repo **Settings → Pages → Source: GitHub Actions**.
+2. Repo **Settings → Secrets and variables → Actions → Variables →** add `DEPLOY_PAGES` = `true`.
+3. Push to `main` (or run the "Deploy to GitHub Pages" workflow by hand).
+
+## Running locally
+
+Needs Node 18+.
 
 ```sh
 npm start            # http://localhost:3000
 PORT=8080 DATA_DIR=/var/lib/jobbie npm start
 ```
 
-`server.js` serves `public/` and a shared leaderboard at `/api/scores`. It keeps only the top 10 and
-writes them to `data/scores.json`, or to `$DATA_DIR/scores.json` if you set `DATA_DIR`.
+`server.js` serves `public/` and the same `/api/scores` API, saving the Top 10 to `data/scores.json`.
+It has no dependencies, so you can also run it on any small server if you'd rather not use Netlify.
 
-### Static hosting (GitHub Pages, Netlify, etc.)
+## Project layout
 
-You can host the `public/` folder on its own. Without the server, the game falls back to a
-**per-device** Top 10 saved in the browser's localStorage. The leaderboard screen says which mode is in use.
-For a leaderboard the whole town shares, run `server.js` somewhere with a persistent disk
-(e.g. Render, Fly.io, Railway or a small VPS).
+| Path | What it is |
+| --- | --- |
+| `public/` | The whole game (HTML, CSS, one JS file). No build step. |
+| `lib/leaderboard.js` | Top 10 rules: validation, rude-word filter, ranking. |
+| `netlify/functions/scores.mjs` | Leaderboard API on Netlify (uses `@netlify/blobs`). |
+| `server.js` | Leaderboard API + static server for local or self-hosted use. |
 
 ## Notes
 
+- The game itself has no dependencies or build step. The only package is `@netlify/blobs`, used by the Netlify function.
 - Everything is drawn on canvas in code and all audio is synthesised with WebAudio, so there are no
   image or sound files. That includes the bagpipe drone and chanter tune.
 - Initials are limited to A–Z and pass through a small rude-word filter. The server also rate-limits submissions.
