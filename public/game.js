@@ -1158,8 +1158,8 @@ function drawPoo(o) {
 function drawBag(o) {
   const t = G.t;
   ctx.translate(0, Math.sin(t * 4 + o.wz) * 6);
-  ctx.scale(1.35, 1.35);
-  ell(0, 0, 28, 28, o.agaric ? 'rgba(255,90,90,0.25)' : 'rgba(255,220,120,0.3)');
+  ctx.scale(1.15, 1.15);
+  ell(0, -2, 20, 20, o.agaric ? 'rgba(255,90,90,0.18)' : 'rgba(255,220,120,0.2)');
   ctx.rotate(Math.sin(t * 3 + o.wz) * 0.25);
   if (o.agaric) {
     // fly agaric: red dome, white spots, white stem
@@ -1842,7 +1842,7 @@ function drawShadow(x, z, rx, alpha) {
 }
 
 function collectSprites() {
-  const items = [];
+  const items = [], pickups = [];
   const add = (z, fn) => { if (z > NEAR_Z && z < FAR_Z) items.push({ z, fn }); };
   const D = G.dist;
   for (const b of G.blds) {
@@ -1871,7 +1871,7 @@ function collectSprites() {
     if (o.dead) continue;
     const z = o.wz - D;
     if (o.k === 'poo') add(z, () => sprite(o.x, 0, z, 1, () => drawPoo(o)));
-    else if (o.k === 'bag') add(z, () => { drawShadow(o.x, z, 0.15, 0.15); sprite(o.x, o.y, z, 0.5, () => drawBag(o)); });
+    else if (o.k === 'bag') { if (z > NEAR_Z && z < FAR_Z) pickups.push({ z, fn: () => { drawShadow(o.x, z, 0.15, 0.15); sprite(o.x, o.y, z, 0.5, () => drawBag(o)); } }); }
     else if (o.k === 'welly') add(z, () => { drawShadow(o.x, z, 0.3, 0.2); sprite(o.x, o.y, z, 0.6, () => drawWelly(o)); });
     else if (o.k === 'bike') add(z, () => { drawShadow(o.x, z, 0.35, 0.2); sprite(o.x, o.y, z, 0.8, () => drawBikePickup(o)); });
     else if (o.k === 'dog' && o.state !== 'wait') add(z, () => sprite(o.x, 0, z, 1, () => drawDog(o)));
@@ -1884,6 +1884,9 @@ function collectSprites() {
     drawShadow(p.x, 0, 0.32 * (1 - p.y * 0.25), 0.3 * (1 - p.y * 0.3));
     sprite(p.x, p.y, 0, 1, drawPlayer);
   });
+  // Mushrooms go down first so they can never hide a hazard behind them.
+  pickups.sort((a, b) => b.z - a.z);
+  for (const it of pickups) it.fn();
   items.sort((a, b) => b.z - a.z);
   for (const it of items) it.fn();
 }
