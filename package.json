@@ -1,0 +1,14 @@
+{
+  "name": "aberfeldy-jobbie-dash",
+  "version": "1.0.0",
+  "description": "Dodge the dog poo on the pavements of Aberfeldy. A mobile-first endless runner.",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

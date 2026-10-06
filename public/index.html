@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#3b2412">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Dodge the dog poo on the pavements of Aberfeldy. A ridiculous endless runner.">
+  <title>Aberfeldy Jobbie Dash</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💩</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="game" aria-label="Game"></canvas>
+
+    <div id="hud" class="hidden">
+      <div class="hud-score" id="score">0</div>
+      <div class="hud-sub"><span id="dist">0m</span> · <span class="bagicon"></span><span id="bags">0</span></div>
+    </div>
+    <div class="corner-btns">
+      <button id="pauseBtn" class="icon-btn hidden" aria-label="Pause">❚❚</button>
+      <button id="muteBtn" class="icon-btn" aria-label="Toggle sound">🔊</button>
+    </div>
+
+    <!-- Title -->
+    <section id="title" class="screen">
+      <div class="panel">
+        <div class="kicker">Perthshire's most treacherous pavements</div>
+        <h1><span class="t1">The Aberfeldy</span><span class="t2">Jobbie Dash</span></h1>
+        <div class="howto">
+          <div><b>Swipe ← →</b> to dodge</div>
+          <div><b>Swipe ↑ / tap</b> to jump</div>
+          <div><b>Swipe ↓</b> to drop fast</div>
+          <div class="warn">⚠ MEGA JOBBIES are too big to jump. Dodge them!</div>
+          <div>Grab <b>poo bags</b> for points. Golden <b>wellies</b> = stomp everything.</div>
+        </div>
+        <button id="playBtn" class="big-btn">RUN!</button>
+        <button id="titleBoardBtn" class="small-btn">🏆 Top 10</button>
+        <div class="best">Yer best: <span id="best">0</span></div>
+        <div class="keys">Keyboard: ← → / A D · ↑ / W / Space · ↓ / S</div>
+      </div>
+    </section>
+
+    <!-- Game over -->
+    <section id="over" class="screen hidden">
+      <div class="panel">
+        <h2 id="overTitle">SPLAT!</h2>
+        <p id="overMsg" class="msg"></p>
+        <div class="stats">
+          <div><span>Score</span><b id="oScore">0</b></div>
+          <div><span>Distance</span><b id="oDist">0m</b></div>
+          <div><span>Poo bags</span><b id="oBags">0</b></div>
+          <div><span>Jobbies dodged</span><b id="oDodged">0</b></div>
+        </div>
+        <form id="saveForm" autocomplete="off">
+          <label for="initials">Enter yer initials</label>
+          <div class="save-row">
+            <input id="initials" maxlength="3" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="AAA" enterkeyhint="done">
+            <button type="submit" id="saveBtn" class="save-btn" disabled>SAVE</button>
+          </div>
+          <div id="saveErr" class="err"></div>
+        </form>
+        <button id="againBtn" class="big-btn">GO AGAIN</button>
+        <button id="overBoardBtn" class="small-btn">🏆 Top 10</button>
+      </div>
+    </section>
+
+    <!-- Leaderboard -->
+    <section id="board" class="screen hidden">
+      <div class="panel">
+        <h2 class="board-title">Top 10<br><small>Jobbie Dodgers</small></h2>
+        <ol id="boardList" class="board-list"></ol>
+        <div id="boardMode" class="board-mode"></div>
+        <button id="boardPlayBtn" class="big-btn">RUN!</button>
+        <button id="boardBackBtn" class="small-btn">Back</button>
+      </div>
+    </section>
+
+    <!-- Pause -->
+    <section id="pause" class="screen hidden">
+      <div class="panel">
+        <h2>Haud on…</h2>
+        <p class="msg">Paused. Mind where ye step.</p>
+        <button id="resumeBtn" class="big-btn">KEEP GOING</button>
+      </div>
+    </section>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
