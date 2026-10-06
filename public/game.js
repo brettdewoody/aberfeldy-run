@@ -7,7 +7,7 @@
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
-const ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d'); // swapped briefly when drawing How to Play icons
 
 // ---------------------------------------------------------------- utilities
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -2016,7 +2016,7 @@ function updateHud() {
   hud.dist.textContent = `${Math.floor(G.dist)}m`;
   hud.bags.textContent = G.bags;
 }
-const screens = ['title', 'over', 'board', 'pause'];
+const screens = ['title', 'over', 'board', 'pause', 'help'];
 function show(id) { for (const s of screens) $(s).classList.toggle('hidden', s !== id); }
 
 const cap = { root: $('caption'), title: $('capTitle'), fact: $('capFact'), timer: 0 };
@@ -2140,7 +2140,107 @@ async function openBoard(from) {
   renderBoard(await Board.fetchTop());
 }
 
-$('playBtn').addEventListener('click', startGame);
+// ---------------------------------------------------------------- how to play
+// Each card reuses the in-game drawing code, so the icons match what you see on the pavement.
+const HELP = [
+  { sec: 'JUMP THESE', cls: 'bad', items: [
+    ['Jobbie', 'Small enough to jump. Tap!', () => drawPoo({ size: 'small', seed: 1 }), 1.3, 0],
+    ['Squashed one', 'Flat, but still mingin\'. Jump it.', () => drawPoo({ size: 'splat', seed: 2 }), 1.3, 0],
+    ['Bagged… and left', 'Someone picked it up, then dumped it. Jump.', () => drawPoo({ size: 'bagged', seed: 3 }), 0.95, 0],
+    ['Skid mark', 'A long one. Time a big jump, or swerve.', drawSkidIcon, 1, 0],
+  ] },
+  { sec: 'DODGE THESE', cls: 'bad', items: [
+    ['MEGA JOBBIE', 'Too big to jump. Change lane!', () => drawPoo({ size: 'mega', seed: 4 }), 0.3, 0],
+    ['Swinging poo bag', 'Swings across the pavement. Time it, or jump it.', drawSwingIcon, 0.9, -8],
+  ] },
+  { sec: "DON'T JUMP", cls: 'bad', items: [
+    ['Hanging poo bags', 'Tied to a tree. Run underneath. Jump and ye headbutt one.', drawHangIcon, 0.9, -8],
+  ] },
+  { sec: 'WATCH OUT', cls: 'bad', items: [
+    ['Scottie dug', 'Runs out and leaves a fresh one right in front of you.', () => drawDog({ state: 'in', dir: 1, t: 0 }), 1.05, 0],
+  ] },
+  { sec: 'GRAB THESE', cls: 'good', items: [
+    ['Chanterelle', '+10. Run through them. Jumping misses them.', () => drawBag({ wz: 0 }), 1.5, 0],
+    ['Fly agaric', '+50. Rare. Dinnae eat it.', () => drawBag({ wz: 1, agaric: true }), 1.5, 0],
+    ['Golden wellies', '6 seconds of stomping through everything.', () => drawWelly({}), 0.85, -26],
+    ['Bike', 'Floats at the top of a jump. Grab it to ride the road and skip ahead.', () => drawBikePickup({}), 0.75, -14],
+  ] },
+];
+function drawSkidIcon() {
+  // a long smear running away from you along the pavement
+  ctx.fillStyle = '#6b3d1a';
+  ctx.beginPath();
+  ctx.moveTo(-34, 4); ctx.bezierCurveTo(-30, -14, -6, -30, -2, -62);
+  ctx.bezierCurveTo(4, -64, 8, -60, 6, -56); ctx.bezierCurveTo(14, -30, 34, -14, 34, 4);
+  ctx.quadraticCurveTo(0, 12, -34, 4); ctx.fill();
+  ctx.fillStyle = '#3b2412';
+  ctx.beginPath(); ctx.moveTo(-8, 4); ctx.quadraticCurveTo(-2, -30, 1, -58); ctx.quadraticCurveTo(4, -30, 10, 4); ctx.fill();
+  flies(3, 0, -40, 28, 12, 5, 3);
+}
+function drawHangIcon() {
+  ctx.strokeStyle = '#4a3423'; ctx.lineWidth = 10; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-40, -70); ctx.lineTo(40, -74); ctx.stroke();
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, -72); ctx.lineTo(0, -52); ctx.stroke();
+  ctx.save(); ctx.translate(0, -52); ctx.scale(0.75, 0.75); pooBag(Math.sin(G.t * 2) * 0.08); ctx.restore();
+}
+function drawSwingIcon() {
+  const th = Math.sin(G.t * 3) * 0.5;
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
+  const kx = Math.sin(th) * 46, ky = -74 + Math.cos(th) * 46;
+  ctx.beginPath(); ctx.moveTo(0, -74); ctx.lineTo(kx, ky); ctx.stroke();
+  ctx.save(); ctx.translate(kx, ky); ctx.scale(0.6, 0.6); pooBag(-th); ctx.restore();
+}
+
+const helpCanvases = [];
+function buildHelp() {
+  const list = $('helpList');
+  if (list.childElementCount) return;
+  for (const group of HELP) {
+    const sec = document.createElement('div');
+    sec.className = `help-sec ${group.cls}`;
+    const h = document.createElement('h3'); h.textContent = group.sec; sec.appendChild(h);
+    for (const [title, desc, fn, scale, oy] of group.items) {
+      const row = document.createElement('div'); row.className = 'help-item';
+      const c = document.createElement('canvas');
+      c.width = 72 * DPR; c.height = 72 * DPR;
+      const text = document.createElement('div');
+      const b = document.createElement('b'); b.textContent = title;
+      const sp = document.createElement('span'); sp.textContent = desc;
+      text.append(b, sp); row.append(c, text); sec.appendChild(row);
+      helpCanvases.push({ c, fn, scale, oy });
+    }
+    list.appendChild(sec);
+  }
+}
+function drawHelpIcons() {
+  const main = ctx;
+  for (const h of helpCanvases) {
+    ctx = h.c.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, h.c.width, h.c.height);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.translate(36, 62 + h.oy);
+    ctx.scale(h.scale * 0.6, h.scale * 0.6);
+    try { h.fn(); } catch (e) { /* an icon failing shouldn't break the page */ }
+  }
+  ctx = main;
+}
+function openHelp(thenPlay) {
+  buildHelp();
+  $('helpBackBtn').classList.toggle('hidden', !!thenPlay);
+  $('help').scrollTop = 0;
+  show('help');
+}
+$('helpBtn').addEventListener('click', () => openHelp(false));
+$('helpBackBtn').addEventListener('click', () => show('title'));
+$('helpPlayBtn').addEventListener('click', () => { store.set('ajd_seen_help', '1'); startGame(); });
+
+// First visit: show How to Play once before the first run.
+$('playBtn').addEventListener('click', () => {
+  if (!store.get('ajd_seen_help')) openHelp(true);
+  else startGame();
+});
 $('againBtn').addEventListener('click', startGame);
 $('boardPlayBtn').addEventListener('click', startGame);
 $('titleBoardBtn').addEventListener('click', () => openBoard('title'));
@@ -2181,6 +2281,7 @@ function frame(now) {
   Sound.tick();
   render();
   if (mode === 'play' || mode === 'dying') updateHud();
+  if (!$('help').classList.contains('hidden')) drawHelpIcons();
   requestAnimationFrame(frame);
 }
 

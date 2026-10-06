@@ -7,6 +7,9 @@ with Schiehallion behind you the whole way.
 
 ## How to play
 
+The game has a **How to play** page (❓ on the title screen, and shown once before your first run)
+with every obstacle and pickup drawn as it appears in the game.
+
 | Action | Touch | Keyboard |
 | --- | --- | --- |
 | Dodge left / right | Swipe ← → | ← → / A D |

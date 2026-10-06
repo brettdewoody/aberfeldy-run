@@ -38,17 +38,30 @@
         <div class="kicker">Perthshire's most treacherous pavements</div>
         <h1><span class="t1">The Aberfeldy</span><span class="t2">Jobbie Dash</span></h1>
         <div class="howto">
-          <div><b>Swipe ← →</b> to dodge</div>
-          <div><b>Swipe ↑ / tap</b> to jump</div>
-          <div><b>Swipe ↓</b> to drop fast</div>
-          <div class="warn">⚠ MEGA JOBBIES are too big to jump. Dodge them!</div>
-          <div class="warn">⚠ Hanging poo bags: run under, DON'T jump.</div>
-          <div>Grab golden <b>chanterelles</b> for points. Golden <b>wellies</b> = stomp everything.</div>
+          <div><b>Swipe ← →</b> dodge · <b>Tap / swipe ↑</b> jump · <b>Swipe ↓</b> drop</div>
         </div>
         <button id="playBtn" class="big-btn">RUN!</button>
-        <button id="titleBoardBtn" class="small-btn">🏆 Top 10</button>
+        <div class="btn-row">
+          <button id="helpBtn" class="small-btn">❓ How to play</button>
+          <button id="titleBoardBtn" class="small-btn">🏆 Top 10</button>
+        </div>
         <div class="best">Yer best: <span id="best">0</span></div>
         <div class="keys">Keyboard: ← → / A D · ↑ / W / Space · ↓ / S</div>
+      </div>
+    </section>
+
+    <!-- How to play -->
+    <section id="help" class="screen screen-top hidden">
+      <div class="panel help-panel">
+        <h2 class="help-title">How to Play</h2>
+        <div class="help-controls">
+          <div><span class="key">← →</span>Swipe to change lane</div>
+          <div><span class="key">↑</span>Tap or swipe up to jump</div>
+          <div><span class="key">↓</span>Swipe down to drop fast</div>
+        </div>
+        <div id="helpList"></div>
+        <button id="helpPlayBtn" class="big-btn">RUN!</button>
+        <button id="helpBackBtn" class="small-btn">Back</button>
       </div>
     </section>
 
