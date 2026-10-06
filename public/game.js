@@ -503,19 +503,16 @@ function addPoo(lane, wz, size, extra) {
 }
 // Collectibles: golden chanterelles, foraged in the woods round Aberfeldy (kind 'bag' is historical).
 // Now and then a fly agaric turns up instead: worth more, definitely not for eating.
-function addBag(lane, wz, y = 0.45) { G.objs.push({ k: 'bag', lane, x: laneX(lane), wz, y, agaric: Math.random() < 0.05 }); }
+// Mushrooms grow on the pavement (y = 0): run through them to pick them, jumping misses them.
+function addBag(lane, wz) { G.objs.push({ k: 'bag', lane, x: laneX(lane), wz, y: 0, agaric: Math.random() < 0.05 }); }
 function bagLine(lane, wz, n) { for (let i = 0; i < n; i++) addBag(lane, wz + i * 1.6); }
-function bagArc(lane, wz) {
-  const spread = G.speed * 0.11;
-  for (let i = -2; i <= 2; i++) addBag(lane, wz + i * spread, 0.5 + 1.0 * (1 - (i / 2.6) ** 2));
-}
 
 function spawnRow(wz) {
   const d = diff();
   const L = () => randi(0, 2);
   if (wz < 60) {
     const l = L(); addPoo(l, wz, 'small');
-    if (wz < 40) bagArc(l, wz);
+    if (wz < 40) bagLine((l + 1 + randi(0, 1)) % 3, wz - 2, 3);
     return;
   }
   const table = [
@@ -534,7 +531,7 @@ function spawnRow(wz) {
     case 'single': {
       const l = lanes[0];
       addPoo(l, wz, pick(['splat', 'small', 'small', 'bagged']));
-      if (Math.random() < 0.5) bagArc(l, wz); else bagLine(lanes[1], wz - 2, 3);
+      bagLine(lanes[1 + randi(0, 1)], wz - 2, 3);
       break;
     }
     case 'double':
@@ -551,11 +548,11 @@ function spawnRow(wz) {
       break;
     case 'wall':
       for (const l of lanes) addPoo(l, wz, Math.random() < 0.3 ? 'splat' : 'small');
-      bagArc(lanes[0], wz);
+      bagLine(lanes[0], wz + 2.5, 3); // a treat for landing the jump
       break;
     case 'megaSmall':
       addPoo(lanes[0], wz, 'mega'); addPoo(lanes[1], wz, 'small');
-      if (Math.random() < d) addPoo(lanes[2], wz, 'splat'); else bagArc(lanes[1], wz);
+      if (Math.random() < d) addPoo(lanes[2], wz, 'splat'); else bagLine(lanes[2], wz - 2, 3);
       break;
     case 'dog': {
       const side = Math.random() < 0.5 ? -1 : 1;
@@ -573,7 +570,7 @@ function spawnRow(wz) {
       const hung = Math.random() < 0.4 + d * 0.4 ? [lanes[0], lanes[1]] : [lanes[0]];
       G.objs.push({ k: 'hang', wz, seed: Math.random() * 10, bags: hung.map((l) => ({ lane: l, x: laneX(l) })) });
       addPoo(lanes[0], wz, pick(['splat', 'small']));
-      if (Math.random() < 0.5) addPoo(lanes[2], wz, 'small'); else bagArc(lanes[2], wz);
+      if (Math.random() < 0.5) addPoo(lanes[2], wz, 'small'); else bagLine(lanes[2], wz - 2, 3);
       break;
     }
     case 'swing':
@@ -1156,11 +1153,12 @@ function drawPoo(o) {
 }
 
 function drawBag(o) {
+  // origin is the base of the stem, on the pavement
   const t = G.t;
-  ctx.translate(0, Math.sin(t * 4 + o.wz) * 6);
   ctx.scale(1.15, 1.15);
-  ell(0, -2, 20, 20, o.agaric ? 'rgba(255,90,90,0.18)' : 'rgba(255,220,120,0.2)');
-  ctx.rotate(Math.sin(t * 3 + o.wz) * 0.25);
+  ell(0, 0, 16, 4, 'rgba(0,0,0,0.25)');
+  ctx.rotate(Math.sin(t * 2 + o.wz) * 0.06);
+  ctx.translate(0, -20);
   if (o.agaric) {
     // fly agaric: red dome, white spots, white stem
     ctx.fillStyle = '#f4efe4'; rr(-6, -4, 12, 24, 4); ctx.fill();
@@ -1871,7 +1869,7 @@ function collectSprites() {
     if (o.dead) continue;
     const z = o.wz - D;
     if (o.k === 'poo') add(z, () => sprite(o.x, 0, z, 1, () => drawPoo(o)));
-    else if (o.k === 'bag') { if (z > NEAR_Z && z < FAR_Z) pickups.push({ z, fn: () => { drawShadow(o.x, z, 0.15, 0.15); sprite(o.x, o.y, z, 0.5, () => drawBag(o)); } }); }
+    else if (o.k === 'bag') { if (z > NEAR_Z && z < FAR_Z) pickups.push({ z, fn: () => sprite(o.x, 0, z, 0.5, () => drawBag(o)) }); }
     else if (o.k === 'welly') add(z, () => { drawShadow(o.x, z, 0.3, 0.2); sprite(o.x, o.y, z, 0.6, () => drawWelly(o)); });
     else if (o.k === 'bike') add(z, () => { drawShadow(o.x, z, 0.35, 0.2); sprite(o.x, o.y, z, 0.8, () => drawBikePickup(o)); });
     else if (o.k === 'dog' && o.state !== 'wait') add(z, () => sprite(o.x, 0, z, 1, () => drawDog(o)));
