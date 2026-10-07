@@ -39,7 +39,7 @@ the golf club, a piper and some Highland coos. About one house in four on the hi
 curtains-shut second home or holiday let. A big brown tourist sign at the roadside
 names each one as you approach.
 
-When you're done, enter 3 initials. The leaderboard shows the **Top 10** only.
+When you're done, enter 3 initials, or tap **📣 Share** to brag via your phone's share sheet. The leaderboard shows the **Top 10** only.
 
 ## Deploying (recommended: Netlify, free)
 
@@ -85,6 +85,9 @@ It has no dependencies, so you can also run it on any small server if you'd rath
 | `server.js` | Leaderboard API + static server for local or self-hosted use. |
 
 ## Notes
+
+- Icons (`favicon.svg`, PNG sizes, `site.webmanifest`) and the link-preview card (`og-image.jpg`, 1200×630) live in
+  `public/`. The Open Graph / Twitter tags point at the live URL, so if the site moves, update them in `index.html`.
 
 - The game itself has no dependencies or build step. The only package is `@netlify/blobs`, used by the Netlify function.
 - Everything is drawn on canvas in code and all audio is synthesised with WebAudio, so there are no

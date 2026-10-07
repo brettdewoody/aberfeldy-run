@@ -7,9 +7,34 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="Dodge the dog poo on the pavements of Aberfeldy. A ridiculous endless runner.">
-  <title>Aberfeldy Jobbie Dash</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💩</text></svg>">
+  <title>The Aberfeldy Jobbie Dash</title>
+  <meta name="description" content="Dodge the dog poo, beavers and second-home 4x4s on Aberfeldy's pavements. A ridiculous endless runner, free to play on your phone.">
+  <link rel="canonical" href="https://aberfeldy-jobbie-dash.netlify.app/">
+
+  <!-- Icons -->
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="Jobbie Dash">
+
+  <!-- Link previews (WhatsApp, Facebook, iMessage, X, Slack...) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="The Aberfeldy Jobbie Dash">
+  <meta property="og:title" content="The Aberfeldy Jobbie Dash 💩">
+  <meta property="og:description" content="Dodge the dog poo, beavers and second-home 4x4s on Aberfeldy's pavements. Can you make the Top 10?">
+  <meta property="og:url" content="https://aberfeldy-jobbie-dash.netlify.app/">
+  <meta property="og:image" content="https://aberfeldy-jobbie-dash.netlify.app/og-image.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="A kilted runner dodging dog poo on an Aberfeldy pavement, beside the title The Aberfeldy Jobbie Dash.">
+  <meta property="og:locale" content="en_GB">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="The Aberfeldy Jobbie Dash 💩">
+  <meta name="twitter:description" content="Dodge the dog poo, beavers and second-home 4x4s on Aberfeldy's pavements. Can you make the Top 10?">
+  <meta name="twitter:image" content="https://aberfeldy-jobbie-dash.netlify.app/og-image.jpg">
+  <meta name="twitter:image:alt" content="A kilted runner dodging dog poo on an Aberfeldy pavement, beside the title The Aberfeldy Jobbie Dash.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
@@ -85,7 +110,10 @@
           <div id="saveErr" class="err"></div>
         </form>
         <button id="againBtn" class="big-btn">GO AGAIN</button>
-        <button id="overBoardBtn" class="small-btn">🏆 Top 10</button>
+        <div class="btn-row">
+          <button id="shareBtn" class="small-btn">📣 Share</button>
+          <button id="overBoardBtn" class="small-btn">🏆 Top 10</button>
+        </div>
       </div>
     </section>
 

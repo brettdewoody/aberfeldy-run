@@ -2335,6 +2335,29 @@ $('playBtn').addEventListener('click', () => {
   else startGame();
 });
 $('againBtn').addEventListener('click', startGame);
+
+// Share the run: the phone's share sheet where there is one, otherwise copy to the clipboard.
+const SHARE_URL = 'https://aberfeldy-jobbie-dash.netlify.app/';
+function shareText() {
+  const n = (v) => Number(v).toLocaleString('en-GB');
+  return `I ran ${n(Math.floor(G.dist))}m and dodged ${n(G.dodged)} jobbies on Aberfeldy's pavements. Score: ${n(G.score)}. Beat that 💩`;
+}
+async function shareScore() {
+  const btn = $('shareBtn');
+  const text = shareText();
+  if (navigator.share) {
+    try { await navigator.share({ title: 'The Aberfeldy Jobbie Dash', text, url: SHARE_URL }); } catch (e) { /* cancelled */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${SHARE_URL}`);
+    btn.textContent = '✅ Copied!';
+  } catch (e) {
+    btn.textContent = '😬 Couldn\'t copy';
+  }
+  setTimeout(() => { btn.textContent = '📣 Share'; }, 2000);
+}
+$('shareBtn').addEventListener('click', shareScore);
 $('boardPlayBtn').addEventListener('click', startGame);
 $('titleBoardBtn').addEventListener('click', () => openBoard('title'));
 $('overBoardBtn').addEventListener('click', () => openBoard('over'));
