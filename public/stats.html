@@ -31,7 +31,7 @@
     svg { display: block; width: 100%; height: auto; overflow: visible; }
     .grid line { stroke: var(--line); }
     .axis text { fill: var(--ink-3); font-size: 11px; }
-    .bar { fill: var(--bar); }
+    .bar { fill: var(--bar); pointer-events: none; } /* taps go to the full-height hit area behind it */
     .hit { fill: transparent; cursor: pointer; }
     .hit:hover + .bar, .bar.on { fill: var(--bar-hover); }
     .tip { position: absolute; pointer-events: none; background: #120a03; border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -100%); display: none; }
