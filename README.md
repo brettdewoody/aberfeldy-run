@@ -63,6 +63,16 @@ To turn it on:
 2. Repo **Settings → Secrets and variables → Actions → Variables →** add `DEPLOY_PAGES` = `true`.
 3. Push to `main` (or run the "Deploy to GitHub Pages" workflow by hand).
 
+## Play statistics
+
+The game counts visits, runs started, runs finished, distance and best score per day, and how many
+different players there have been. A player is an anonymous random id the game keeps in the browser
+(no names, IP addresses or cookies). Events go to `/api/event` and are stored in Netlify Blobs.
+
+To see them, open **`/stats.html?key=YOUR_KEY`**, where the key is the `STATS_KEY` environment variable
+set in Netlify (Site configuration → Environment variables). The page remembers the key on that device.
+Self-hosting with `server.js`? Set `STATS_KEY` when starting it; stats are saved to `data/stats.json`.
+
 ## Running locally
 
 Needs Node 18+.
@@ -82,7 +92,10 @@ It has no dependencies, so you can also run it on any small server if you'd rath
 | `public/` | The whole game (HTML, CSS, one JS file). No build step. |
 | `lib/leaderboard.js` | Top 10 rules: validation, rude-word filter, ranking. |
 | `netlify/functions/scores.mjs` | Leaderboard API on Netlify (uses `@netlify/blobs`). |
-| `server.js` | Leaderboard API + static server for local or self-hosted use. |
+| `lib/stats.js` | Play statistics: event validation and daily totals. |
+| `netlify/functions/stats.mjs` | Stats API on Netlify (`/api/event`, `/api/stats`). |
+| `public/stats.html` | The private stats page. |
+| `server.js` | Leaderboard + stats API and static server for local or self-hosted use. |
 
 ## Notes
 

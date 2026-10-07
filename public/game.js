@@ -33,6 +33,26 @@ const store = {
 };
 const FONT = '"Luckiest Guy", Impact, "Arial Black", sans-serif';
 
+// Anonymous play statistics: a random id per browser (no names, IPs or cookies) and three
+// events (visit, run, finish). Fire-and-forget: if the server isn't there, nothing happens.
+const PID = (() => {
+  let id = store.get('ajd_pid') || '';
+  if (!/^[a-z0-9]{8,40}$/.test(id)) {
+    id = window.crypto && crypto.randomUUID
+      ? crypto.randomUUID().replace(/-/g, '')
+      : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    store.set('ajd_pid', id);
+  }
+  return id;
+})();
+function track(type, extra) {
+  const body = JSON.stringify(Object.assign({ type, pid: PID }, extra));
+  try {
+    if (navigator.sendBeacon && navigator.sendBeacon('api/event', new Blob([body], { type: 'text/plain' }))) return;
+  } catch (e) { /* fall through to fetch */ }
+  try { fetch('api/event', { method: 'POST', body, keepalive: true }).catch(() => {}); } catch (e) { /* offline */ }
+}
+
 // ---------------------------------------------------------------- content
 const SHOPS = [
   { name: 'THE WATERMILL', sub: 'Books · Coffee', front: '#22402f', accent: '#c9a227', sign: '#22402f', text: '#f4e7c1', door: '#16291e' },
@@ -2169,6 +2189,7 @@ function hideCaption() { clearTimeout(cap.timer); cap.root.classList.add('hidden
 function startGame() {
   Sound.init();
   newGame(false);
+  track('run');
   mode = 'play';
   show(null);
   hud.root.classList.remove('hidden');
@@ -2198,6 +2219,7 @@ function resume() {
 let saved = false;
 function gameOver() {
   mode = 'over';
+  track('finish', { dist: Math.floor(G.dist), score: G.score });
   hud.pause.classList.add('hidden');
   hideCaption();
   Sound.sleep();
@@ -2444,6 +2466,7 @@ function frame(now) {
 
 resize();
 goTitle();
+track('visit');
 if (document.fonts && document.fonts.load) document.fonts.load(`20px "Luckiest Guy"`).catch(() => {});
 requestAnimationFrame(frame);
 

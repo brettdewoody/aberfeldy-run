@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Jobbie Dash Stats</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #241508; --surface: #2f1d0d; --line: rgba(255, 246, 227, .12);
+      --ink: #fff6e3; --ink-2: rgba(255, 246, 227, .72); --ink-3: rgba(255, 246, 227, .5);
+      --bar: #b87a12; --bar-hover: #e0a020; --gold: #ffc61a;
+      --font: "Luckiest Guy", Impact, "Arial Black", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 20px 16px 40px; }
+    h1 { font-family: var(--font); font-weight: normal; font-size: 34px; margin: 0; color: var(--gold); }
+    .sub { color: var(--ink-3); margin: 2px 0 18px; font-size: 13px; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 10px; }
+    .tile .label { color: var(--ink-2); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+    .tile .value { font-family: var(--font); font-size: 32px; line-height: 1.15; margin-top: 2px; }
+    .tile .note { color: var(--ink-3); font-size: 12px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 14px 8px; margin-bottom: 14px; }
+    .card h2 { font-size: 15px; margin: 0 0 2px; }
+    .card .desc { color: var(--ink-3); font-size: 12px; margin-bottom: 8px; }
+    .chart { position: relative; }
+    svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .grid line { stroke: var(--line); }
+    .axis text { fill: var(--ink-3); font-size: 11px; }
+    .bar { fill: var(--bar); }
+    .hit { fill: transparent; cursor: pointer; }
+    .hit:hover + .bar, .bar.on { fill: var(--bar-hover); }
+    .tip { position: absolute; pointer-events: none; background: #120a03; border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -100%); display: none; }
+    .tip b { display: block; font-size: 13px; }
+    details { margin-top: 6px; }
+    summary { cursor: pointer; color: var(--ink-2); font-size: 13px; padding: 4px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+    th, td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--line); }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--ink-2); font-weight: 600; }
+    .msg { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+    form { display: flex; gap: 8px; margin-top: 10px; }
+    input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 15px; }
+    button { padding: 10px 16px; border-radius: 8px; border: 0; background: var(--gold); color: #3b2412; font-weight: 800; cursor: pointer; }
+    a { color: var(--gold); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Jobbie Dash Stats</h1>
+  <div class="sub" id="sub">Loading…</div>
+  <div id="out"></div>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => Number(n).toLocaleString('en-GB');
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } } };
+
+  const params = new URLSearchParams(location.search);
+  let key = params.get('key') || store.get('ajd_stats_key') || '';
+
+  function askForKey(message) {
+    $('sub').textContent = message;
+    $('out').innerHTML = `<div class="msg">Enter the stats key to see the numbers.
+      <form id="kf"><input id="ki" type="password" placeholder="Stats key" autocomplete="off"><button>Show stats</button></form></div>`;
+    $('kf').addEventListener('submit', (e) => { e.preventDefault(); key = $('ki').value.trim(); load(); });
+  }
+
+  async function load() {
+    if (!key) return askForKey('Private page');
+    let r;
+    try { r = await fetch(`api/stats?key=${encodeURIComponent(key)}`, { cache: 'no-store' }); } catch (e) { return askForKey('Could not reach the server.'); }
+    const body = await r.json().catch(() => ({}));
+    if (r.status === 403) { store.set('ajd_stats_key', ''); return askForKey('That key was wrong.'); }
+    if (!r.ok) return askForKey(body.error || 'Could not load stats.');
+    store.set('ajd_stats_key', key);
+    render(body);
+  }
+
+  function lastNDays(days, n) {
+    const byDate = Object.fromEntries(days.map((d) => [d.date, d]));
+    const out = [];
+    const today = new Date();
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i));
+      const date = d.toISOString().slice(0, 10);
+      out.push(byDate[date] || { date, players: 0, visits: 0, runs: 0, finishes: 0, dist: 0, best: 0 });
+    }
+    return out;
+  }
+
+  function render({ totals, days }) {
+    const today = new Date().toISOString().slice(0, 10);
+    const t = days.find((d) => d.date === today) || { players: 0, runs: 0 };
+    const first = days.length ? days[0].date : today;
+    $('sub').textContent = `Since ${new Date(first + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · days in UTC · players are anonymous browsers`;
+
+    const tiles = [
+      ['Players', fmt(totals.players), 'different browsers, all time'],
+      ['Runs', fmt(totals.runs), 'started, all time'],
+      ['Today', fmt(t.runs), `runs by ${fmt(t.players)} player${t.players === 1 ? '' : 's'}`],
+      ['Runs per player', totals.players ? (totals.runs / totals.players).toFixed(1) : '0', 'average'],
+      ['Distance run', `${fmt(Math.round(totals.dist / 1000))} km`, 'all runs added up'],
+      ['Best score', fmt(totals.best), 'single run'],
+    ];
+    const series = lastNDays(days, 30);
+    $('out').innerHTML = `
+      <div class="tiles">${tiles.map(([l, v, n]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join('')}</div>
+      <div class="card">
+        <h2>Runs per day</h2>
+        <div class="desc">Last 30 days. Hover or tap a bar for the day's players.</div>
+        <div class="chart" id="chart"></div>
+        <details><summary>Show as a table</summary>
+          <table><thead><tr><th>Day</th><th>Players</th><th>Visits</th><th>Runs</th><th>Finished</th><th>Best</th></tr></thead>
+          <tbody>${series.slice().reverse().map((d) => `<tr><td>${esc(d.date)}</td><td>${fmt(d.players)}</td><td>${fmt(d.visits)}</td><td>${fmt(d.runs)}</td><td>${fmt(d.finishes)}</td><td>${fmt(d.best)}</td></tr>`).join('')}</tbody></table>
+        </details>
+      </div>`;
+    lastSeries = series;
+    drawChart(series);
+  }
+
+  function niceMax(v) {
+    if (v <= 5) return 5;
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    for (const m of [1, 2, 2.5, 5, 10]) if (v <= m * p) return m * p;
+    return 10 * p;
+  }
+
+  function drawChart(series) {
+    const el = $('chart');
+    // drawn at the real on-screen width so labels stay a readable size on phones
+    const W = Math.max(300, Math.round(el.clientWidth)), H = 230, L = 34, R = 6, T = 10, B = 26;
+    const max = niceMax(Math.max(...series.map((d) => d.runs), 1));
+    const n = series.length, slot = (W - L - R) / n, gap = 2, bw = Math.max(2, slot - gap);
+    const y = (v) => T + (H - T - B) * (1 - v / max);
+    const ticks = [0, max / 2, max];
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Runs per day for the last 30 days">`;
+    svg += `<g class="grid">${ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`).join('')}</g>`;
+    svg += `<g class="axis">${ticks.map((v) => `<text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${fmt(v)}</text>`).join('')}`;
+    series.forEach((d, i) => {
+      if (i % 7 === (n - 1) % 7) {
+        const label = new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        svg += `<text x="${L + i * slot + slot / 2}" y="${H - 8}" text-anchor="middle">${label}</text>`;
+      }
+    });
+    svg += '</g>';
+    series.forEach((d, i) => {
+      const x = L + i * slot + gap / 2, top = y(d.runs), h = Math.max(0, y(0) - top), r = Math.min(4, bw / 2, h);
+      // hit area is the full column so thin bars are easy to hover/tap
+      svg += `<rect class="hit" data-i="${i}" x="${L + i * slot}" y="${T}" width="${slot}" height="${H - T - B}"/>`;
+      // rounded only at the data end (top), square on the baseline
+      svg += h > 0
+        ? `<path class="bar" data-i="${i}" d="M${x},${y(0)} V${top + r} Q${x},${top} ${x + r},${top} H${x + bw - r} Q${x + bw},${top} ${x + bw},${top + r} V${y(0)} Z"/>`
+        : `<path class="bar" data-i="${i}" d=""/>`;
+    });
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="rgba(255,246,227,.35)"/></svg><div class="tip" id="tip"></div>`;
+    el.innerHTML = svg;
+
+    const tip = $('tip'), bars = el.querySelectorAll('.bar');
+    const show = (i) => {
+      const d = series[i];
+      bars.forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
+      const box = el.querySelector('svg').getBoundingClientRect(), k = box.width / W;
+      tip.innerHTML = `<b>${new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</b>${fmt(d.runs)} run${d.runs === 1 ? '' : 's'} · ${fmt(d.players)} player${d.players === 1 ? '' : 's'}`;
+      tip.style.left = `${(L + i * slot + slot / 2) * k}px`;
+      tip.style.top = `${(y(d.runs) - 6) * k}px`;
+      tip.style.display = 'block';
+    };
+    const hide = () => { tip.style.display = 'none'; bars.forEach((b) => b.classList.remove('on')); };
+    el.querySelectorAll('.hit').forEach((h) => {
+      h.addEventListener('mouseenter', () => show(+h.dataset.i));
+      h.addEventListener('click', () => show(+h.dataset.i));
+    });
+    el.addEventListener('mouseleave', hide);
+  }
+  let lastSeries = null;
+  window.addEventListener('resize', () => { if (lastSeries) drawChart(lastSeries); });
+
+  load();
+})();
+</script>
+</body>
+</html>

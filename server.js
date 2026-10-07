@@ -1,4 +1,5 @@
-// Zero-dependency server for local or self-hosted use: serves the game and a shared Top 10 leaderboard.
+// Zero-dependency server for local or self-hosted use: serves the game, a shared Top 10 leaderboard
+// and play statistics (GET /api/stats?key=$STATS_KEY).
 //   node server.js            -> http://localhost:3000
 //   PORT=8080 DATA_DIR=/var/lib/ajd node server.js
 'use strict';
@@ -7,11 +8,13 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { validate, insert, publicScores: toPublic, makeRateLimiter } = require('./lib/leaderboard');
+const stats = require('./lib/stats');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const SCORES_FILE = path.join(DATA_DIR, 'scores.json');
+const STATS_FILE = path.join(DATA_DIR, 'stats.json');
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -90,8 +93,41 @@ function serveStatic(req, res) {
   });
 }
 
+// ---- play statistics: { days: { 'YYYY-MM-DD': record }, players: { pid: firstDay } }
+let statData = { days: {}, players: {} };
+try { statData = Object.assign(statData, JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'))); } catch (e) { /* none yet */ }
+function persistStats() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(`${STATS_FILE}.tmp`, JSON.stringify(statData));
+  fs.renameSync(`${STATS_FILE}.tmp`, STATS_FILE);
+}
+function handleStats(req, res, p) {
+  if (p.endsWith('/api/event')) {
+    if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 512) req.destroy(); });
+    req.on('end', () => {
+      let ev;
+      try { ev = stats.validateEvent(JSON.parse(body)); } catch (e) { return json(res, 400, { error: 'Bad request' }); }
+      if (ev.error) return json(res, 400, { error: ev.error });
+      const today = stats.dayKey();
+      statData.days[today] = stats.applyEvent(statData.days[today], ev);
+      if (ev.type === 'visit' && !statData.players[ev.pid]) statData.players[ev.pid] = today;
+      try { persistStats(); } catch (e) { console.error('Failed to save stats', e); }
+      json(res, 200, { ok: true });
+    });
+    return;
+  }
+  const key = process.env.STATS_KEY || '';
+  if (!key) return json(res, 503, { error: 'Stats are not set up yet (no STATS_KEY).' });
+  if (new URL(req.url, 'http://x').searchParams.get('key') !== key) return json(res, 403, { error: 'Wrong key.' });
+  const days = Object.entries(statData.days).map(([date, rec]) => ({ date, rec }));
+  json(res, 200, stats.summarize(days, Object.keys(statData.players).length));
+}
+
 const server = http.createServer((req, res) => {
   const p = (req.url || '').split('?')[0];
+  if (p.endsWith('/api/event') || p.endsWith('/api/stats')) return handleStats(req, res, p);
   if (p === '/api/scores' || p.endsWith('/api/scores')) return handleApi(req, res);
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
   serveStatic(req, res);
