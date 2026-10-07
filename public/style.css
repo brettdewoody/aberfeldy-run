@@ -177,6 +177,27 @@ h2 {
 .howto .warn { color: var(--red); font-weight: 800; margin: 4px 0; }
 .btn-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
+/* Title: name at the top, buttons at the bottom, demo run visible in between */
+.title-screen {
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 50px);
+  background: linear-gradient(to bottom,
+    rgba(36, 21, 8, .72) 0%, rgba(36, 21, 8, 0) 30%,
+    rgba(36, 21, 8, 0) 60%, rgba(36, 21, 8, .88) 100%);
+}
+.title-top h1 { margin-bottom: 0; }
+.title-top .t1 { font-size: 30px; }
+.title-top .t2 { font-size: 56px; }
+.title-bottom .howto { margin-bottom: 8px; padding: 8px 12px; }
+.title-bottom .big-btn { margin: 4px 0 12px; }
+.title-bottom .best { margin-top: 8px; }
+@media (max-height: 640px) {
+  .title-top .t2 { font-size: 46px; }
+  .title-bottom .keys { display: none; }
+}
+
 /* How to play */
 .screen-top { align-items: flex-start; }
 .help-panel { padding-bottom: 8px; }

@@ -141,10 +141,16 @@ function resize() {
   canvas.width = Math.round(W * DPR);
   canvas.height = Math.round(H * DPR);
   cx = W / 2;
-  horizonY = H * 0.33;
+  layoutView();
+}
+// The title-screen demo frames the runner higher up (between the title and the buttons);
+// a real run puts them near the bottom. viewK glides between the two: 0 = demo, 1 = game.
+let viewK = 0;
+function layoutView() {
+  horizonY = H * lerp(0.25, 0.33, viewK);
   const u = Math.min(W * 0.22, H * 0.15); // pixel width of one lane at the player
   F = u * CAM_BACK;
-  camH = (H * 0.86 - horizonY) / u;
+  camH = (H * lerp(0.6, 0.86, viewK) - horizonY) / u;
 }
 window.addEventListener('resize', resize);
 
@@ -447,7 +453,7 @@ const GRAV = 30, JUMP_V = 9.2;
 
 function newGame(attract) {
   G = {
-    attract, t: 0, dist: 0, speed: attract ? 6 : 10, bonus: 0, bags: 0, dodged: 0, score: 0,
+    attract, t: 0, dist: 0, speed: attract ? 8 : 10, bonus: 0, bags: 0, dodged: 0, score: 0,
     p: { lane: 1, x: 0, y: 0, vy: 0, air: false, fast: false, phase: 0, welly: 0, bike: 0, grace: 0, lastLane: -9, jumpBuf: 0 },
     objs: [], scen: [], blds: [], parts: [], floats: [], splats: [], drops: [],
     clouds: Array.from({ length: 6 }, () => ({ x: Math.random(), y: rand(0.03, 0.22), s: rand(0.6, 1.4), v: rand(0.004, 0.012) })),
@@ -495,12 +501,11 @@ function fillWorld() {
     G.scen.push({ k: 'bin', x: WALL_X - 0.22, wz: G.nextBin, seed: Math.random() * 10 });
     G.nextBin += rand(18, 32);
   }
-  if (!G.attract) {
-    while (G.nextRow < horizon) {
-      spawnRow(G.nextRow);
-      const T = lerp(1.15, 0.5, diff());
-      G.nextRow += Math.max(6, G.speed * T);
-    }
+  // The title-screen demo gets obstacles too, at an easy pace.
+  while (G.nextRow < horizon) {
+    spawnRow(G.nextRow);
+    const T = G.attract ? 1.3 : lerp(1.15, 0.5, diff());
+    G.nextRow += Math.max(6, G.speed * T);
   }
   if (G.dist > G.nextTractor) {
     G.scen.push({ k: 'tractor', x: -3.55, wz: G.dist + FAR_Z - 2, moving: 5 });
@@ -528,11 +533,11 @@ function spawnRow(wz) {
   const table = [
     ['single', 3], ['double', 1.2 + d * 1.5], ['mega1', 2.4], ['mega2', 0.4 + d * 2.6],
     ['wall', 0.3 + d * 1.4], ['dog', 1.1], ['bags', 1.1], ['megaSmall', 0.4 + d * 2],
-    ['welly', G.p.welly > 0 || G.t < 15 ? 0 : 0.22],
+    ['welly', G.attract || G.p.welly > 0 || G.t < 15 ? 0 : 0.22],
     ['bagtree', G.t < 6 ? 0 : 1.3 + d], ['swing', G.t < 18 ? 0 : 0.7 + d * 1.4],
     ['smear', 0.9 + d], ['gauntlet', d < 0.35 ? 0 : d * 1.6],
     ['suv', G.t < 12 ? 0 : 0.8 + d * 0.6],
-    ['bike', G.t < 25 || G.p.bike > 0 || G.objs.some((o) => o.k === 'bike') ? 0 : 0.3],
+    ['bike', G.attract || G.t < 25 || G.p.bike > 0 || G.objs.some((o) => o.k === 'bike') ? 0 : 0.3],
   ];
   let r = Math.random() * table.reduce((s, e) => s + e[1], 0);
   let kind = table[0][0];
@@ -753,7 +758,7 @@ function update(dt) {
       p.y += p.vy * dt;
       if (p.y <= 0) {
         p.y = 0; p.vy = 0; p.air = false; p.fast = false;
-        Sound.sfx.land();
+        if (!G.attract) Sound.sfx.land();
         if (p.jumpBuf > 0) doJump();
       }
     }
@@ -764,7 +769,7 @@ function update(dt) {
       if (p.welly <= 0) floater('WELLIES AFF', 'Back tae normal shoes', { color: '#fff', size: 34 });
     }
 
-    if (!G.attract) { updateObjs(dt, prev); updateCaptions(); }
+    if (!G.attract) { updateObjs(dt, prev); updateCaptions(); } else demoPilot(dt);
 
     for (const s of G.scen) if (s.moving) s.wz += s.moving * dt;
 
@@ -925,6 +930,40 @@ function updateObjs(dt, prev) {
   }
 }
 
+// Title-screen demo: a silent autopilot that dodges and jumps (it can't die; nothing collides).
+function demoPilot(dt) {
+  const p = G.p;
+  for (const o of G.objs) if (o.k === 'dog') updateDog(o, dt, o.wz - G.dist);
+  const look = G.speed * 0.8;
+  const runBad = [0, 0, 0], jumpBad = [0, 0, 0], shroom = [0, 0, 0], nearest = [Infinity, Infinity, Infinity];
+  for (const o of G.objs) {
+    if (o.dead) continue;
+    const z = o.wz - G.dist, zEnd = z + (o.len || 0);
+    if (o.k === 'bag' && Math.abs(z) < 0.4 && Math.abs(o.x - p.x) < 0.5 && p.y < 0.35) { o.dead = true; continue; }
+    if (zEnd < -0.4 || z > look) continue;
+    if (o.k === 'poo') {
+      runBad[o.lane] = 1; nearest[o.lane] = Math.min(nearest[o.lane], z);
+      if (POO[o.size].h > 5) jumpBad[o.lane] = 1;
+    } else if (o.k === 'smear') {
+      runBad[o.lane] = 1; nearest[o.lane] = Math.min(nearest[o.lane], z);
+    } else if (o.k === 'suv') {
+      runBad[0] = 1; jumpBad[0] = 1;
+    } else if (o.k === 'hang') {
+      for (const b of o.bags) jumpBad[b.lane] = 1;
+    } else if (o.k === 'bag') {
+      shroom[o.lane] = 1;
+    }
+  }
+  const cost = (l) => (runBad[l] && jumpBad[l] ? 100 : 0) + (runBad[l] ? 2 : 0) - shroom[l] + Math.abs(l - p.lane) * 0.6;
+  if (!p.air) {
+    let best = p.lane;
+    for (let l = 0; l < 3; l++) if (cost(l) < cost(best) - 0.1) best = l;
+    if (best !== p.lane && G.t - p.lastLane > 0.22) { p.lane += Math.sign(best - p.lane); p.lastLane = G.t; }
+    const n = nearest[p.lane];
+    if (runBad[p.lane] && !jumpBad[p.lane] && n > 0 && n < G.speed * 0.3) { p.air = true; p.vy = JUMP_V; }
+  }
+}
+
 const introduced = new Set();
 function updateCaptions() {
   for (const o of G.objs) {
@@ -949,7 +988,7 @@ function updateDog(o, dt, z) {
     if (o.t > 0.6 && !o.done) {
       o.done = true;
       addPoo(o.lane, o.wz - 0.3, o.mega ? 'dam' : 'log', { born: G.t });
-      if (z < 40) Sound.sfx.chomp();
+      if (z < 40 && !G.attract) Sound.sfx.chomp();
     }
     if (o.t > 0.85) o.state = 'out';
   } else {
@@ -2079,6 +2118,8 @@ function drawOverlays() {
 }
 
 function render() {
+  const wantK = G.attract ? 0 : 1;
+  if (Math.abs(wantK - viewK) > 0.001) { viewK += (wantK - viewK) * 0.12; layoutView(); }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.save();
   if (G.shake > 0) ctx.translate(rand(-G.shake, G.shake) * 0.5, rand(-G.shake, G.shake) * 0.5);
