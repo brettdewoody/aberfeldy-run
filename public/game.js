@@ -48,6 +48,11 @@ const SHOPS = [
   { name: 'PHARMACY', sub: 'Shoe Disinfectant', front: '#0f8a6a', accent: '#ffffff', sign: '#ffffff', text: '#0f8a6a', door: '#0a4d3c' },
   { name: 'POST OFFICE', sub: 'Stamps · Midge Spray', front: '#c8102e', accent: '#ffd400', sign: '#c8102e', text: '#ffd400', door: '#6b0818' },
 ];
+// Popular round here. Dark windows, curtains shut, nobody home till August.
+const SECOND_HOMES = [
+  { name: 'SECOND HOME', sub: 'Empty till August', front: '#cfc9bb', accent: '#7d7d7d', sign: '#f4f1ea', text: '#555555', door: '#33393f', empty: true },
+  { name: 'HOLIDAY LET', sub: 'Key safe · No locals', front: '#bfc7c2', accent: '#3b6e5a', sign: '#3b6e5a', text: '#ffffff', door: '#2c3a34', empty: true },
+];
 const WALL_COLORS = ['#b9b2a3', '#9e978a', '#d8d2c4', '#c7b9a0', '#8f8a80', '#e9e4d8', '#a9a196', '#cfc4ae'];
 const STREETS = ['DUNKELD ST', 'BANK ST', 'KENMORE ST', 'CHAPEL ST', 'THE SQUARE', 'TAYBRIDGE RD', 'CRIEFF RD', 'MILL ST'];
 
@@ -66,6 +71,9 @@ const DEATH = {
   hang: ['Headbutted a bag of poo hanging from a tree.', 'Jumped straight intae the poo bag tree.'],
   swing: ['Clotheslined by a swinging poo bag.', 'The poo bag swung. You didnae.'],
   smear: ['Skidded right down a skid mark.', 'That skid mark went on forever.'],
+  log: ['Tripped over a beaver log.', 'Felled by a beaver. Well, a log.'],
+  dam: ['Ran into a beaver dam. On a pavement.', 'The beaver built that in four seconds.'],
+  suv: ['Ran into a second-home 4x4.', "Splatted on a Range Rover. They're back in August."],
 };
 const QUIPS = ['Och, that\'s mingin\'.', 'Help ma boab!', 'Pure honkin\'.', 'Yer maw\'s gonnae kill ye.', 'Every. Single. Time.', 'The Council will hear about this.', 'Smells like a Tuesday.'];
 
@@ -102,13 +110,15 @@ const HAZARD_INFO = {
   swing: ['SWINGING POO BAG!', 'Time it, or jump it.'],
   smear: ['SKID MARK!', 'A long one. Jump it or swerve.'],
   bagged: ['BAGGED... AND LEFT', 'Picked up, then abandoned. Jump it.'],
-  dog: ['DUG ALERT!', "It's about to do its business."],
+  dog: ['BEAVER!', "Reintroduced, and busy. It's damming yer pavement."],
+  suv: ['SECOND-HOME 4x4!', "Parked on the pavement till August. Go round it."],
   bike: ['A BIKE!', 'Jump at the top to grab it. Ride the road, skip ahead.'],
 };
 const LM_KEYS = Object.keys(LANDMARK_X);
 
-const POO = { splat: { h: 0.12 }, small: { h: 0.42 }, bagged: { h: 0.4 }, mega: { h: 99 } };
+const POO = { splat: { h: 0.12 }, small: { h: 0.42 }, bagged: { h: 0.4 }, mega: { h: 99 }, log: { h: 0.42 }, dam: { h: 99 } };
 const LMSIGN_X = -4.55;   // post of the roadside landmark signs (board overhangs the road)
+const SUV_X = -1.35;      // the 4x4 straddles the kerb, over the kerb-side lane
 const BIKE_X = -2.45;     // riding line in the road, inside the centre line
 const BIKE_TIME = 5;      // seconds on the bike
 const BIKE_BOOST = 1.7;   // speed multiplier while riding
@@ -316,7 +326,7 @@ const Sound = (() => {
     lane() { noise(0.09, 0.12, 2800, 'bandpass'); },
     bag() { tone('square', 988, null, 0.06, 0.15); tone('square', 1319, null, 0.12, 0.15, 0.06); },
     splat() { noise(0.7, 1, 700); tone('sine', 180, 35, 0.6, 0.9); tone('sawtooth', 90, 40, 0.5, 0.25, 0.05); },
-    plop() { tone('sine', 700, 110, 0.2, 0.45); },
+    chomp() { for (let i = 0; i < 3; i++) noise(0.05, 0.35, 2400, 'bandpass', i * 0.1); tone('sine', 150, 60, 0.2, 0.5, 0.32); },
     stomp() { noise(0.3, 0.8, 1300); tone('sine', 140, 45, 0.3, 0.6); },
     close() { noise(0.25, 0.3, 1800, 'bandpass'); tone('triangle', 600, 1200, 0.12, 0.15); },
     welly() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone('square', f, null, 0.14, 0.16, i * 0.07)); },
@@ -458,7 +468,8 @@ function fillWorld() {
   while (G.nextBld < horizon) {
     const len = rand(3.8, 6.5);
     const wall = pick(WALL_COLORS);
-    G.blds.push({ z0: G.nextBld, z1: G.nextBld + len, h: rand(3.4, 6.4), wall, side: mix(wall, '#000000', 0.25), shop: pick(SHOPS) });
+    const shop = Math.random() < 0.25 ? pick(SECOND_HOMES) : pick(SHOPS);
+    G.blds.push({ z0: G.nextBld, z1: G.nextBld + len, h: rand(3.4, 6.4), wall, side: mix(wall, '#000000', 0.25), shop });
     G.nextBld += len + (Math.random() < 0.25 ? rand(0.8, 2.2) : 0);
   }
   while (G.nextLM < horizon) {
@@ -502,9 +513,8 @@ function addPoo(lane, wz, size, extra) {
   G.objs.push(Object.assign({ k: 'poo', lane, x: laneX(lane), wz, size, seed: Math.random() * 10 }, extra));
 }
 // Collectibles: golden chanterelles, foraged in the woods round Aberfeldy (kind 'bag' is historical).
-// Now and then a fly agaric turns up instead: worth more, definitely not for eating.
 // Mushrooms grow on the pavement (y = 0): run through them to pick them, jumping misses them.
-function addBag(lane, wz) { G.objs.push({ k: 'bag', lane, x: laneX(lane), wz, y: 0, agaric: Math.random() < 0.05 }); }
+function addBag(lane, wz) { G.objs.push({ k: 'bag', lane, x: laneX(lane), wz, y: 0 }); }
 function bagLine(lane, wz, n) { for (let i = 0; i < n; i++) addBag(lane, wz + i * 1.6); }
 
 function spawnRow(wz) {
@@ -521,6 +531,7 @@ function spawnRow(wz) {
     ['welly', G.p.welly > 0 || G.t < 15 ? 0 : 0.22],
     ['bagtree', G.t < 6 ? 0 : 1.3 + d], ['swing', G.t < 18 ? 0 : 0.7 + d * 1.4],
     ['smear', 0.9 + d], ['gauntlet', d < 0.35 ? 0 : d * 1.6],
+    ['suv', G.t < 12 ? 0 : 0.8 + d * 0.6],
     ['bike', G.t < 25 || G.p.bike > 0 || G.objs.some((o) => o.k === 'bike') ? 0 : 0.3],
   ];
   let r = Math.random() * table.reduce((s, e) => s + e[1], 0);
@@ -555,7 +566,8 @@ function spawnRow(wz) {
       if (Math.random() < d) addPoo(lanes[2], wz, 'splat'); else bagLine(lanes[2], wz - 2, 3);
       break;
     case 'dog': {
-      const side = Math.random() < 0.5 ? -1 : 1;
+      const side = -1; // beavers come up from the river side
+      // a beaver up from the Tay (kind 'dog' is historical): drops a log, or builds a whole dam
       G.objs.push({ k: 'dog', x: side * 3.4, wz, dir: -side, target: laneX(lanes[0]), lane: lanes[0], state: 'wait', t: 0, mega: Math.random() < 0.3 + d * 0.3 });
       break;
     }
@@ -587,6 +599,11 @@ function spawnRow(wz) {
       G.objs.push({ k: 'bike', lane: lanes[0], x: laneX(lanes[0]), wz, y: 1.2 });
       addPoo(lanes[1], wz, 'mega');
       G.objs.push({ k: 'hang', wz, seed: Math.random() * 10, bags: [{ lane: lanes[2], x: laneX(lanes[2]) }] });
+      break;
+    case 'suv':
+      // straddles the kerb, blocking the kerb-side lane; sometimes a jobbie in the middle too
+      G.objs.push({ k: 'suv', lane: 0, x: SUV_X, wz, len: 4.4 });
+      if (Math.random() < 0.3 + d * 0.5) addPoo(1 + randi(0, 1), wz + rand(0, 2), pick(['small', 'splat', 'bagged']));
       break;
     case 'gauntlet':
       // Only lanes[2] gets through, and only with a jump.
@@ -853,6 +870,19 @@ function updateObjs(dt, prev) {
         o.passed = true; G.dodged++;
         if (Math.abs(sw.x - p.x) < 1.1) { G.bonus += 20; floater('+20', pick(EXCL.close), { color: '#7dff7a' }); Sound.sfx.close(); }
       }
+    } else if (o.k === 'suv') {
+      const on = !immune && !o.dead && zNow < 0.35 && zNow + o.len > -0.35 && Math.abs(o.x - p.x) < 0.8;
+      if (on) {
+        if (p.welly > 0) {
+          o.dead = true;
+          const [sx, sy] = P(o.x, 1, Math.max(zNow, 0));
+          burst(sx, sy, 30, ['#1f2526', '#ffb300', '#ffffff'], 1.2);
+          G.bonus += 50; floater('+50', 'DENTED THE 4x4!', { color: '#ffe36b' }); Sound.sfx.stomp();
+          continue;
+        }
+        die(o); return;
+      }
+      if (!o.passed && zNow + o.len < -0.35) { o.passed = true; G.dodged++; }
     } else if (o.k === 'smear') {
       const on = !immune && zNow < 0.35 && zNow + o.len > -0.35 && dx < 0.5;
       if (on && p.y < 0.1) {
@@ -880,13 +910,7 @@ function updateObjs(dt, prev) {
         const [sx, sy] = P(o.x, o.y, Math.max(zNow, 0));
         if (o.k === 'bag') {
           G.bags++;
-          if (o.agaric) {
-            G.bonus += 40;
-            burst(sx, sy, 18, ['#d32f2f', '#ffffff', '#ffcdd2'], 0.8);
-            floater('+50', 'DINNAE EAT THAT!', { color: '#ff5252', size: 46 });
-          } else {
-            burst(sx, sy, 8, ['#f2a900', '#ffd966', '#ffffff'], 0.5);
-          }
+          burst(sx, sy, 8, ['#f2a900', '#ffd966', '#ffffff'], 0.5);
           Sound.sfx.bag();
           if (G.bags % 10 === 0) floater(`${G.bags} CHANTERELLES!`, 'Forager supreme', { color: '#ffd24d', size: 40 });
         } else {
@@ -922,12 +946,12 @@ function updateDog(o, dt, z) {
     if (Math.abs(o.target - o.x) <= Math.abs(step)) { o.x = o.target; o.state = 'poop'; o.t = 0; }
     else o.x += step;
   } else if (o.state === 'poop') {
-    if (o.t > 0.45 && !o.done) {
+    if (o.t > 0.6 && !o.done) {
       o.done = true;
-      addPoo(o.lane, o.wz - 0.3, o.mega ? 'mega' : 'small', { born: G.t });
-      if (z < 40) Sound.sfx.plop();
+      addPoo(o.lane, o.wz - 0.3, o.mega ? 'dam' : 'log', { born: G.t });
+      if (z < 40) Sound.sfx.chomp();
     }
-    if (o.t > 0.7) o.state = 'out';
+    if (o.t > 0.85) o.state = 'out';
   } else {
     o.x += o.dir * 7 * dt;
   }
@@ -1047,13 +1071,17 @@ function drawBuildings() {
     const a = z0 + 0.15, e = z1 - 0.15;
     quadWall(X, 0, 2.1, a, e, s.front);
     quadWall(X, 1.72, 2.05, a, e, s.accent);
-    quadWall(X, 0.45, 1.55, a + 0.25, e - 1.25, '#2c3e50');
+    quadWall(X, 0.45, 1.55, a + 0.25, e - 1.25, s.empty ? '#141a21' : '#2c3e50');
+    if (s.empty) { // closed curtains
+      quadWall(X, 0.5, 1.5, a + 0.3, a + 0.3 + (e - a - 1.6) * 0.47, '#8c7a6b');
+      quadWall(X, 0.5, 1.5, e - 1.3 - (e - a - 1.6) * 0.47, e - 1.3, '#8c7a6b');
+    }
     quadWall(X, 1.05, 1.5, a + 0.45, a + 1.1, 'rgba(255,255,255,0.18)');
     quadWall(X, 0, 1.62, e - 1.05, e - 0.35, s.door);
     for (let y = 2.6; y + 1.0 < h - 0.25; y += 1.4) {
       for (let wz = a + 0.45; wz + 0.65 < e; wz += 1.3) {
         quadWall(X, y, y + 0.95, wz, wz + 0.65, '#ece7da');
-        quadWall(X, y + 0.07, y + 0.88, wz + 0.07, wz + 0.58, '#3a4d63');
+        quadWall(X, y + 0.07, y + 0.88, wz + 0.07, wz + 0.58, s.empty ? '#7a6a5c' : '#3a4d63');
       }
     }
   }
@@ -1071,7 +1099,9 @@ function drawPoo(o) {
   ctx.save();
   ctx.scale(sc, sc);
   ell(0, 0, o.size === 'mega' ? 62 : 32, o.size === 'mega' ? 12 : 6, 'rgba(0,0,0,0.25)');
-  if (o.size === 'bagged') {
+  if (o.size === 'log' || o.size === 'dam') {
+    drawTimber(o);
+  } else if (o.size === 'bagged') {
     // a full bag, knotted and left on the pavement
     ctx.fillStyle = '#1d261d'; ctx.strokeStyle = '#0b0f0b'; ctx.lineWidth = 3;
     ctx.beginPath();
@@ -1146,9 +1176,11 @@ function drawPoo(o) {
   if (plop > 0) {
     ctx.globalAlpha *= plop;
     ctx.lineWidth = 8; ctx.strokeStyle = '#3b2412';
-    ctx.font = `${o.size === 'mega' ? 70 : 46}px ${FONT}`; ctx.textAlign = 'center';
-    const y = (o.size === 'mega' ? -240 : -80) - (1 - plop) * 40;
-    ctx.strokeText('PLOP!', 0, y); ctx.fillStyle = '#ffd84d'; ctx.fillText('PLOP!', 0, y);
+    const big = o.size === 'mega' || o.size === 'dam';
+    const word = o.size === 'log' || o.size === 'dam' ? 'THUNK!' : 'PLOP!';
+    ctx.font = `${big ? 70 : 46}px ${FONT}`; ctx.textAlign = 'center';
+    const y = (o.size === 'mega' ? -240 : o.size === 'dam' ? -190 : -80) - (1 - plop) * 40;
+    ctx.strokeText(word, 0, y); ctx.fillStyle = '#ffd84d'; ctx.fillText(word, 0, y);
   }
 }
 
@@ -1159,15 +1191,7 @@ function drawBag(o) {
   ell(0, 0, 16, 4, 'rgba(0,0,0,0.25)');
   ctx.rotate(Math.sin(t * 2 + o.wz) * 0.06);
   ctx.translate(0, -20);
-  if (o.agaric) {
-    // fly agaric: red dome, white spots, white stem
-    ctx.fillStyle = '#f4efe4'; rr(-6, -4, 12, 24, 4); ctx.fill();
-    ctx.fillStyle = '#e8e0cf'; ctx.fillRect(-8, 4, 16, 4);
-    ctx.fillStyle = '#d32f2f';
-    ctx.beginPath(); ctx.moveTo(-22, -2); ctx.quadraticCurveTo(-22, -26, 0, -26); ctx.quadraticCurveTo(22, -26, 22, -2); ctx.closePath(); ctx.fill();
-    for (const [x, y, r] of [[-12, -10, 3.5], [0, -19, 4], [11, -12, 3], [-4, -7, 2.5], [15, -5, 2.2]]) ell(x, y, r, r * 0.85, '#fff');
-    ell(-9, -18, 4, 2, 'rgba(255,255,255,0.4)');
-  } else {
+  {
     // chanterelle: golden trumpet with a wavy, upturned rim
     const g = ctx.createLinearGradient(0, -24, 0, 20);
     g.addColorStop(0, '#ffd24d'); g.addColorStop(1, '#e08a00');
@@ -1222,39 +1246,107 @@ function drawBikePickup(o) {
   ctx.strokeText('BIKE!', 0, -62); ctx.fillStyle = '#ffd84d'; ctx.fillText('BIKE!', 0, -62);
 }
 
-function drawDog(o) {
+function drawBeaver(o) {
   const t = G.t;
-  const squat = o.state === 'poop';
-  ctx.scale(o.dir, 1);
-  const run = squat || o.state === 'wait' ? 0 : Math.sin(t * 24);
-  ell(0, 0, 34, 6, 'rgba(0,0,0,0.25)');
-  ctx.fillStyle = '#151515';
-  // legs
-  const legs = [[-20, run], [-12, -run], [16, -run], [24, run]];
-  for (const [lx, r] of legs) { ctx.save(); ctx.translate(lx, -14); ctx.rotate(r * 0.5); ctx.fillRect(-3, 0, 7, 15); ctx.restore(); }
-  ctx.save();
-  if (squat) { ctx.translate(-10, 4); ctx.rotate(-0.25); }
-  ell(0, -24, 30, 13, '#151515');
-  // skirt fur
-  ctx.beginPath(); ctx.moveTo(-26, -20); for (let i = 0; i <= 8; i++) ctx.lineTo(-26 + i * 6.5, -12 + (i % 2) * 4); ctx.lineTo(26, -22); ctx.fill();
-  // tail
-  ctx.beginPath(); ctx.moveTo(-26, -30); ctx.lineTo(-36, -50 + Math.sin(t * 20) * 4); ctx.lineTo(-30, -28); ctx.fill();
-  // head
-  ell(30, -38, 13, 12, '#151515');
-  ctx.beginPath(); ctx.moveTo(24, -46); ctx.lineTo(26, -62); ctx.lineTo(32, -47); ctx.moveTo(32, -47); ctx.lineTo(37, -61); ctx.lineTo(40, -44); ctx.fill();
-  ctx.fillRect(34, -40, 16, 10);
-  ctx.beginPath(); ctx.moveTo(34, -30); ctx.lineTo(48, -30); ctx.lineTo(42, -20); ctx.lineTo(36, -22); ctx.fill(); // beard
-  ell(49, -39, 3, 3, '#333');
-  ell(33, -42, 2.2, 2.2, '#fff');
-  // tartan collar
-  ctx.fillStyle = '#c8102e'; ctx.fillRect(18, -36, 6, 12);
+  const gnaw = o.state === 'poop';
+  ctx.scale(1.35 * o.dir, 1.35); // a big, unmistakable beaver
+  const run = gnaw || o.state === 'wait' ? 0 : Math.sin(t * 22);
+  ell(0, 0, 40, 6, 'rgba(0,0,0,0.25)');
+  // flat, scaly paddle tail
+  ctx.save(); ctx.translate(-30, -10); ctx.rotate(-0.15 + (gnaw ? Math.sin(t * 18) * 0.25 : run * 0.1));
+  ctx.fillStyle = '#2e241c'; ctx.beginPath(); ctx.ellipse(-20, 0, 24, 9, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1.5;
+  for (let i = -36; i < -4; i += 7) { ctx.beginPath(); ctx.moveTo(i, -7); ctx.lineTo(i + 4, 7); ctx.moveTo(i + 4, -7); ctx.lineTo(i, 7); ctx.stroke(); }
   ctx.restore();
-  if (squat) {
-    ctx.save(); ctx.scale(o.dir, 1);
-    ctx.font = `30px ${FONT}`; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 5; ctx.textAlign = 'center';
-    ctx.strokeText('*strain*', 0, -78); ctx.fillText('*strain*', 0, -78);
+  // feet
+  ctx.fillStyle = '#3b2a1e';
+  for (const [lx, r] of [[-16, run], [14, -run]]) { ctx.save(); ctx.translate(lx, -10); ctx.rotate(r * 0.5); rr(-6, 0, 14, 10, 4); ctx.fill(); ctx.restore(); }
+  // chunky body
+  ell(0, -24, 32, 20, '#6b4423');
+  ell(6, -18, 20, 12, '#8a5a32');
+  ell(-6, -34, 14, 6, 'rgba(255,255,255,0.12)');
+  // head
+  const hx = 30, hy = gnaw ? -26 : -34;
+  ell(hx, hy, 15, 13, '#6b4423');
+  ell(hx - 6, hy - 12, 4, 4, '#4a2f18');
+  ell(hx + 13, hy - 2, 4, 3.5, '#151515');
+  ell(hx + 4, hy - 4, 2.5, 2.5, '#151515');
+  ell(hx + 5, hy - 5, 0.9, 0.9, '#fff');
+  // big orange teeth
+  ctx.fillStyle = '#f08a00'; ctx.fillRect(hx + 8, hy + 7, 4, 7); ctx.fillRect(hx + 12, hy + 7, 4, 7);
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(hx + 12, hy + 1); ctx.lineTo(hx + 26, hy - 2); ctx.moveTo(hx + 12, hy + 3); ctx.lineTo(hx + 26, hy + 4); ctx.stroke();
+  if (gnaw) {
+    // the stick it's working on, and flying wood chips
+    ctx.fillStyle = '#9c7a4f'; rr(hx + 4, hy + 12, 42, 9, 4); ctx.fill();
+    for (let i = 0; i < 5; i++) {
+      const ph = (t * 3 + i / 5) % 1;
+      ctx.fillStyle = `rgba(222,190,140,${1 - ph})`;
+      ctx.fillRect(hx + 16 + Math.cos(i * 1.7) * ph * 40, hy + 8 - ph * 40 + ph * ph * 50, 5, 3);
+    }
+    ctx.save(); ctx.scale(o.dir, 1); // un-flip so the text reads the right way round
+    ctx.font = `28px ${FONT}`; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#000'; ctx.lineWidth = 5; ctx.textAlign = 'center';
+    ctx.strokeText('*gnaw gnaw*', 0, -78); ctx.fillText('*gnaw gnaw*', 0, -78);
     ctx.restore();
   }
+}
+
+// What the beaver leaves: a gnawed log across the lane (jump it) or a full dam (dodge it).
+function drawTimber(o) {
+  if (o.size === 'log') {
+    ell(0, 0, 46, 8, 'rgba(0,0,0,0.25)');
+    ctx.fillStyle = '#7a5532'; rr(-40, -34, 76, 30, 14); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2;
+    for (const y of [-26, -18, -11]) { ctx.beginPath(); ctx.moveTo(-34, y); ctx.lineTo(28, y + 1); ctx.stroke(); }
+    ell(36, -19, 9, 15, '#d9b88a'); ell(36, -19, 5, 9, '#b8925f');
+    // the gnawed point
+    ctx.fillStyle = '#d9b88a'; ctx.beginPath(); ctx.moveTo(-40, -32); ctx.lineTo(-56, -19); ctx.lineTo(-40, -6); ctx.fill();
+    return;
+  }
+  // dam: a towering heap of sticks and mud
+  ell(0, 0, 70, 12, 'rgba(0,0,0,0.3)');
+  ctx.fillStyle = '#4a3423';
+  ctx.beginPath(); ctx.moveTo(-68, 0); ctx.quadraticCurveTo(-50, -130, 0, -150); ctx.quadraticCurveTo(50, -130, 68, 0); ctx.fill();
+  const sticks = ['#8a6239', '#6d4a2a', '#a07446', '#5c3d22'];
+  for (let i = 0; i < 26; i++) {
+    const y = -8 - ((i * 37) % 130), half = 62 * (1 - Math.abs(y) / 160);
+    const x = ((i * 53) % (half * 2 + 1)) - half;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(((i * 1.9) % 2.4) - 1.2);
+    ctx.fillStyle = sticks[i % 4]; rr(-24, -3, 48, 6, 3); ctx.fill();
+    ctx.restore();
+  }
+  ell(-20, -40, 14, 8, 'rgba(80,60,40,0.7)'); ell(24, -70, 12, 7, 'rgba(80,60,40,0.7)');
+  // a wee sign, because of course
+  ctx.fillStyle = '#5a3a1f'; ctx.fillRect(-3, -200, 6, 60);
+  ctx.fillStyle = '#f4f1ea'; rr(-40, -224, 80, 30, 4); ctx.fill();
+  fitText('NO ENTRY', 0, -209, 70, 18, '#c8102e');
+}
+
+// The second-home 4x4, parked half on the pavement with its hazards on.
+function drawSuv(o) {
+  const t = G.t;
+  const blink = Math.floor(t * 2.2) % 2 === 0;
+  ell(0, 0, 98, 12, 'rgba(0,0,0,0.35)');
+  ctx.fillStyle = '#111'; rr(-90, -46, 34, 46, 8); ctx.fill(); rr(56, -46, 34, 46, 8); ctx.fill();
+  ctx.fillStyle = '#1f2526'; rr(-92, -168, 184, 132, 18); ctx.fill();
+  ctx.fillStyle = '#2b3335'; rr(-92, -168, 184, 22, 14); ctx.fill();
+  // roof box, packed for the weekend
+  ctx.fillStyle = '#0d0f10'; rr(-70, -196, 140, 26, 12); ctx.fill();
+  ctx.strokeStyle = '#ffd400'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-30, -196); ctx.lineTo(-30, -170); ctx.moveTo(30, -196); ctx.lineTo(30, -170); ctx.stroke();
+  // tinted rear window
+  ctx.fillStyle = 'rgba(70,90,105,0.9)'; rr(-72, -150, 144, 50, 10); ctx.fill();
+  ell(-40, -134, 18, 5, 'rgba(255,255,255,0.18)');
+  // lights: hazards blinking
+  ctx.fillStyle = '#8a0f14'; rr(-90, -96, 26, 24, 5); ctx.fill(); rr(64, -96, 26, 24, 5); ctx.fill();
+  ctx.fillStyle = blink ? '#ffb300' : '#6b4a00'; rr(-90, -72, 26, 10, 3); ctx.fill(); rr(64, -72, 26, 10, 3); ctx.fill();
+  if (blink) { ell(-77, -67, 22, 14, 'rgba(255,180,0,0.25)'); ell(77, -67, 22, 14, 'rgba(255,180,0,0.25)'); }
+  // yellow UK rear plate
+  ctx.fillStyle = '#ffd400'; rr(-48, -86, 96, 24, 3); ctx.fill();
+  fitText('B4CK AUG', 0, -73, 86, 20, '#111');
+  // bumper + sticker
+  ctx.fillStyle = '#151a1b'; rr(-92, -54, 184, 14, 6); ctx.fill();
+  ctx.fillStyle = '#fff'; rr(20, -112, 58, 16, 3); ctx.fill();
+  fitText('I ♥ THE HIGHLANDS', 49, -104, 54, 9, '#c8102e');
 }
 
 function drawPlayer() {
@@ -1872,7 +1964,8 @@ function collectSprites() {
     else if (o.k === 'bag') { if (z > NEAR_Z && z < FAR_Z) pickups.push({ z, fn: () => sprite(o.x, 0, z, 0.5, () => drawBag(o)) }); }
     else if (o.k === 'welly') add(z, () => { drawShadow(o.x, z, 0.3, 0.2); sprite(o.x, o.y, z, 0.6, () => drawWelly(o)); });
     else if (o.k === 'bike') add(z, () => { drawShadow(o.x, z, 0.35, 0.2); sprite(o.x, o.y, z, 0.8, () => drawBikePickup(o)); });
-    else if (o.k === 'dog' && o.state !== 'wait') add(z, () => sprite(o.x, 0, z, 1, () => drawDog(o)));
+    else if (o.k === 'dog' && o.state !== 'wait') add(z, () => sprite(o.x, 0, z, 1, () => drawBeaver(o)));
+    else if (o.k === 'suv' && !o.dead) add(z, () => sprite(o.x, 0, z, 1.2, () => drawSuv(o)));
     else if (o.k === 'hang') add(z + 0.05, () => sprite(BAG_TREE_X, 0, z, 4, () => drawHang(o)));
     else if (o.k === 'swing') add(z + 0.05, () => sprite(BAG_TREE_X, 0, z, 4, () => drawSwing(o)));
     else if (o.k === 'smear') add(z + o.len * 0.5, () => sprite(o.x, 0, z + o.len * 0.5, 1, () => { flies(3, 0, -30, 40, 12, o.seed, 3); stink(2, 50, -10, o.seed, 0.45); }));
@@ -2151,17 +2244,17 @@ const HELP = [
   ] },
   { sec: 'DODGE THESE', cls: 'bad', items: [
     ['MEGA JOBBIE', 'Too big to jump. Change lane!', () => drawPoo({ size: 'mega', seed: 4 }), 0.3, 0],
+    ['Second-home 4x4', 'Parked on the pavement till August. Go round it.', () => drawSuv({}), 0.4, 0],
     ['Swinging poo bag', 'Swings across the pavement. Time it, or jump it.', drawSwingIcon, 0.9, -8],
   ] },
   { sec: "DON'T JUMP", cls: 'bad', items: [
     ['Hanging poo bags', 'Tied to a tree. Run underneath. Jump and ye headbutt one.', drawHangIcon, 0.9, -8],
   ] },
   { sec: 'WATCH OUT', cls: 'bad', items: [
-    ['Scottie dug', 'Runs out and leaves a fresh one right in front of you.', () => drawDog({ state: 'in', dir: 1, t: 0 }), 1.05, 0],
+    ['Beaver', 'Up from the Tay. Drops a log (jump it) or builds a whole dam (dodge it).', () => drawBeaver({ state: 'in', dir: 1, t: 0 }), 1.0, 0],
   ] },
   { sec: 'GRAB THESE', cls: 'good', items: [
     ['Chanterelle', '+10. Run through them. Jumping misses them.', () => drawBag({ wz: 0 }), 1.5, 0],
-    ['Fly agaric', '+50. Rare. Dinnae eat it.', () => drawBag({ wz: 1, agaric: true }), 1.5, 0],
     ['Golden wellies', '6 seconds of stomping through everything.', () => drawWelly({}), 0.85, -26],
     ['Bike', 'Floats at the top of a jump. Grab it to ride the road and skip ahead.', () => drawBikePickup({}), 0.75, -14],
   ] },

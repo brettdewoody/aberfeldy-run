@@ -22,9 +22,11 @@ with every obstacle and pickup drawn as it appears in the game.
 - **Hanging poo bags** on the poo bag tree: run underneath, but don't jump into them.
 - **Swinging poo bags** sweep across the pavement. Time your lane, or jump them.
 - **Skid marks** are long. Jump them or swerve.
-- Scottie dogs run out and leave fresh ones in front of you.
-- Each golden **chanterelle** (foraged in the woods round Aberfeldy) is worth 10 points. A rare red **fly agaric**
-  is worth 50. Dinnae eat it. Hurdles, close shaves and stomps also add points.
+- **Beavers** come up from the Tay and either drop a gnawed log across your lane (jump it)
+  or build a whole dam (too big, dodge it).
+- **Second-home 4x4s** park on the pavement with their hazards on, blocking the kerb lane. Go round them.
+- Each golden **chanterelle** (foraged in the woods round Aberfeldy) is worth 10 points. Hurdles, close shaves
+  and stomps also add points.
 - 🚲 **The bike** floats at the top of a jump, above a jobbie, and is always guarded. Grab it and you're
   **on yer bike**: 5 seconds riding the road at high speed past everything on the pavement.
 - 🥾 **Golden wellies** give 6 seconds of stomping through everything, hanging bags included.
@@ -33,7 +35,8 @@ with every obstacle and pickup drawn as it appears in the game.
 Landmarks you pass include Wade's Bridge, the Black Watch Memorial, the Birks o' Aberfeldy,
 Aberfeldy Distillery, Castle Menzies, the Aberfeldy Footbridge, Taymouth Castle, the Scottish
 Crannog Centre, the Fortingall Yew, Dull (twinned with Boring), the Grandtully rapids,
-the golf club, a piper and some Highland coos. A big brown tourist sign at the roadside
+the golf club, a piper and some Highland coos. About one house in four on the high street is a dark,
+curtains-shut second home or holiday let. A big brown tourist sign at the roadside
 names each one as you approach.
 
 When you're done, enter 3 initials. The leaderboard shows the **Top 10** only.
