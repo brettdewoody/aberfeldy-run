@@ -1,10 +1,11 @@
 // Play statistics on Netlify, stored in Netlify Blobs.
-//   POST /api/event  {type: 'visit'|'run'|'finish', pid, dist?, score?}   (sent by the game)
+//   POST /api/event  {type: 'visit'|'run'|'finish', first?, dist?, score?}   (sent by the game)
 //   GET  /api/stats?key=STATS_KEY                                         (the private stats page)
+// Only daily counts are stored; nothing identifies a player.
 import { getStore } from '@netlify/blobs';
 import stats from '../../lib/stats.js';
 
-const { validateEvent, applyEvent, summarize, dayKey } = stats;
+const { validateEvent, applyEvent, summarize, dayKey, cleanDay, needsCleaning } = stats;
 
 const json = (status, body) => new Response(JSON.stringify(body), {
   status,
@@ -48,10 +49,6 @@ export async function handleStats(req, store, key) {
     if (ev.error) return json(400, { error: ev.error });
     const today = dayKey();
     const ok = await updateJSON(store, `day-${today}`, (rec) => applyEvent(rec, ev));
-    if (ev.type === 'visit') {
-      // all-time player list: id -> first day seen
-      await updateJSON(store, 'players', (all) => (all && all[ev.pid] ? null : Object.assign({}, all, { [ev.pid]: today })));
-    }
     return json(ok ? 200 : 429, { ok });
   }
 
@@ -60,8 +57,10 @@ export async function handleStats(req, store, key) {
   if (url.searchParams.get('key') !== key) return json(403, { error: 'Wrong key.' });
   const { blobs } = await store.list({ prefix: 'day-' });
   const days = await Promise.all(blobs.map(async (b) => ({ date: b.key.slice(4), rec: await store.get(b.key, { type: 'json' }) })));
-  const players = (await store.get('players', { type: 'json' })) || {};
-  return json(200, summarize(days, Object.keys(players).length));
+  // One-off tidy-up: an earlier version stored anonymous player ids. Remove them for good.
+  await store.delete('players');
+  await Promise.all(days.filter((d) => needsCleaning(d.rec)).map((d) => updateJSON(store, `day-${d.date}`, (rec) => (needsCleaning(rec) ? cleanDay(rec) : null))));
+  return json(200, summarize(days));
 }
 
 export const config = { path: ['/api/event', '/api/stats'] };

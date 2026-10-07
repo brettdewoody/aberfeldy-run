@@ -65,9 +65,10 @@ To turn it on:
 
 ## Play statistics
 
-The game counts visits, runs started, runs finished, distance and best score per day, and how many
-different players there have been. A player is an anonymous random id the game keeps in the browser
-(no names, IP addresses or cookies). Events go to `/api/event` and are stored in Netlify Blobs.
+The game keeps plain daily counts: visits, new players, runs started, runs finished, distance and best
+score. Nothing identifies a player: no id, name, IP address or cookie is sent or stored. "New players"
+is approximate: a visit counts as new if that browser hasn't yet got past the How to Play page (a flag
+the game already keeps for showing that page once). Events go to `/api/event` and are stored in Netlify Blobs.
 
 To see them, open **`/stats.html?key=YOUR_KEY`**, where the key is the `STATS_KEY` environment variable
 set in Netlify (Site configuration → Environment variables). The page remembers the key on that device.

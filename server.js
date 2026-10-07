@@ -93,9 +93,13 @@ function serveStatic(req, res) {
   });
 }
 
-// ---- play statistics: { days: { 'YYYY-MM-DD': record }, players: { pid: firstDay } }
-let statData = { days: {}, players: {} };
-try { statData = Object.assign(statData, JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'))); } catch (e) { /* none yet */ }
+// ---- play statistics: { days: { 'YYYY-MM-DD': counts } }. Nothing identifies a player.
+let statData = { days: {} };
+try {
+  const saved = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
+  // older versions also kept anonymous player ids; keep only the counts
+  for (const [date, rec] of Object.entries(saved.days || {})) statData.days[date] = stats.cleanDay(rec);
+} catch (e) { /* none yet */ }
 function persistStats() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(`${STATS_FILE}.tmp`, JSON.stringify(statData));
@@ -112,7 +116,6 @@ function handleStats(req, res, p) {
       if (ev.error) return json(res, 400, { error: ev.error });
       const today = stats.dayKey();
       statData.days[today] = stats.applyEvent(statData.days[today], ev);
-      if (ev.type === 'visit' && !statData.players[ev.pid]) statData.players[ev.pid] = today;
       try { persistStats(); } catch (e) { console.error('Failed to save stats', e); }
       json(res, 200, { ok: true });
     });
@@ -122,7 +125,7 @@ function handleStats(req, res, p) {
   if (!key) return json(res, 503, { error: 'Stats are not set up yet (no STATS_KEY).' });
   if (new URL(req.url, 'http://x').searchParams.get('key') !== key) return json(res, 403, { error: 'Wrong key.' });
   const days = Object.entries(statData.days).map(([date, rec]) => ({ date, rec }));
-  json(res, 200, stats.summarize(days, Object.keys(statData.players).length));
+  json(res, 200, stats.summarize(days));
 }
 
 const server = http.createServer((req, res) => {

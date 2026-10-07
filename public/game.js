@@ -33,20 +33,11 @@ const store = {
 };
 const FONT = '"Luckiest Guy", Impact, "Arial Black", sans-serif';
 
-// Anonymous play statistics: a random id per browser (no names, IPs or cookies) and three
-// events (visit, run, finish). Fire-and-forget: if the server isn't there, nothing happens.
-const PID = (() => {
-  let id = store.get('ajd_pid') || '';
-  if (!/^[a-z0-9]{8,40}$/.test(id)) {
-    id = window.crypto && crypto.randomUUID
-      ? crypto.randomUUID().replace(/-/g, '')
-      : Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-    store.set('ajd_pid', id);
-  }
-  return id;
-})();
+// Play statistics: plain counts only. Nothing identifies a player; no id is sent or stored.
+// "New player" reuses the How to Play flag the game already keeps for showing that page once.
+try { localStorage.removeItem('ajd_pid'); } catch (e) { /* tidy away the id older versions kept */ }
 function track(type, extra) {
-  const body = JSON.stringify(Object.assign({ type, pid: PID }, extra));
+  const body = JSON.stringify(Object.assign({ type }, extra));
   try {
     if (navigator.sendBeacon && navigator.sendBeacon('api/event', new Blob([body], { type: 'text/plain' }))) return;
   } catch (e) { /* fall through to fetch */ }
@@ -2466,7 +2457,7 @@ function frame(now) {
 
 resize();
 goTitle();
-track('visit');
+track('visit', { first: !store.get('ajd_seen_help') });
 if (document.fonts && document.fonts.load) document.fonts.load(`20px "Luckiest Guy"`).catch(() => {});
 requestAnimationFrame(frame);
 

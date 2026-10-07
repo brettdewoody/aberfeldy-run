@@ -91,21 +91,21 @@
     for (let i = n - 1; i >= 0; i--) {
       const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i));
       const date = d.toISOString().slice(0, 10);
-      out.push(byDate[date] || { date, players: 0, visits: 0, runs: 0, finishes: 0, dist: 0, best: 0 });
+      out.push(byDate[date] || { date, newPlayers: 0, visits: 0, runs: 0, finishes: 0, dist: 0, best: 0 });
     }
     return out;
   }
 
   function render({ totals, days }) {
     const today = new Date().toISOString().slice(0, 10);
-    const t = days.find((d) => d.date === today) || { players: 0, runs: 0 };
+    const t = days.find((d) => d.date === today) || { newPlayers: 0, runs: 0, visits: 0 };
     const first = days.length ? days[0].date : today;
-    $('sub').textContent = `Since ${new Date(first + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · days in UTC · players are anonymous browsers`;
+    $('sub').textContent = `Since ${new Date(first + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · days in UTC · counts only, nothing identifies a player`;
 
     const tiles = [
-      ['Players', fmt(totals.players), 'different browsers, all time'],
+      ['Players', fmt(totals.players), 'first-time visitors, approx.'],
       ['Runs', fmt(totals.runs), 'started, all time'],
-      ['Today', fmt(t.runs), `runs by ${fmt(t.players)} player${t.players === 1 ? '' : 's'}`],
+      ['Today', fmt(t.runs), `runs · ${fmt(t.visits)} visit${t.visits === 1 ? '' : 's'} · ${fmt(t.newPlayers)} new`],
       ['Runs per player', totals.players ? (totals.runs / totals.players).toFixed(1) : '0', 'average'],
       ['Distance run', `${fmt(Math.round(totals.dist / 1000))} km`, 'all runs added up'],
       ['Best score', fmt(totals.best), 'single run'],
@@ -115,11 +115,11 @@
       <div class="tiles">${tiles.map(([l, v, n]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join('')}</div>
       <div class="card">
         <h2>Runs per day</h2>
-        <div class="desc">Last 30 days. Hover or tap a bar for the day's players.</div>
+        <div class="desc">Last 30 days. Hover or tap a bar for the day's visits and new players.</div>
         <div class="chart" id="chart"></div>
         <details><summary>Show as a table</summary>
-          <table><thead><tr><th>Day</th><th>Players</th><th>Visits</th><th>Runs</th><th>Finished</th><th>Best</th></tr></thead>
-          <tbody>${series.slice().reverse().map((d) => `<tr><td>${esc(d.date)}</td><td>${fmt(d.players)}</td><td>${fmt(d.visits)}</td><td>${fmt(d.runs)}</td><td>${fmt(d.finishes)}</td><td>${fmt(d.best)}</td></tr>`).join('')}</tbody></table>
+          <table><thead><tr><th>Day</th><th>New players</th><th>Visits</th><th>Runs</th><th>Finished</th><th>Best</th></tr></thead>
+          <tbody>${series.slice().reverse().map((d) => `<tr><td>${esc(d.date)}</td><td>${fmt(d.newPlayers)}</td><td>${fmt(d.visits)}</td><td>${fmt(d.runs)}</td><td>${fmt(d.finishes)}</td><td>${fmt(d.best)}</td></tr>`).join('')}</tbody></table>
         </details>
       </div>`;
     lastSeries = series;
@@ -168,7 +168,7 @@
       const d = series[i];
       bars.forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
       const box = el.querySelector('svg').getBoundingClientRect(), k = box.width / W;
-      tip.innerHTML = `<b>${new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</b>${fmt(d.runs)} run${d.runs === 1 ? '' : 's'} · ${fmt(d.players)} player${d.players === 1 ? '' : 's'}`;
+      tip.innerHTML = `<b>${new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</b>${fmt(d.runs)} run${d.runs === 1 ? '' : 's'} · ${fmt(d.visits)} visit${d.visits === 1 ? '' : 's'} · ${fmt(d.newPlayers)} new`;
       tip.style.left = `${(L + i * slot + slot / 2) * k}px`;
       tip.style.top = `${(y(d.runs) - 6) * k}px`;
       tip.style.display = 'block';
