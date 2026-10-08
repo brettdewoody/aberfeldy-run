@@ -59,6 +59,19 @@ const SHOPS = [
   { name: 'OUTDOOR SHOP', sub: 'Waterproofs (Essential)', front: '#3e7d3a', accent: '#f18f01', sign: '#f18f01', text: '#1f3d1d', door: '#203f1e' },
   { name: 'PHARMACY', sub: 'Shoe Disinfectant', front: '#0f8a6a', accent: '#ffffff', sign: '#ffffff', text: '#0f8a6a', door: '#0a4d3c' },
   { name: 'POST OFFICE', sub: 'Stamps · Midge Spray', front: '#c8102e', accent: '#ffd400', sign: '#c8102e', text: '#ffd400', door: '#6b0818' },
+  { name: 'COFFEE', sub: 'Oat Milk Extra', front: '#5b3a29', accent: '#e8c9a0', sign: '#e8c9a0', text: '#5b3a29', door: '#33201a' },
+  { name: 'ROASTERY', sub: 'Small Batch · Big Prices', front: '#2b2b2b', accent: '#c47a2c', sign: '#2b2b2b', text: '#e9b872', door: '#151515' },
+  { name: 'TWEED SHOP', sub: 'Jackets for Grouse', front: '#6b5b3e', accent: '#c9b37e', sign: '#c9b37e', text: '#3f3524', door: '#3f3524' },
+  { name: 'HARDWARE', sub: 'Poo Bags: Aisle 3', front: '#b33a1c', accent: '#f2f2f2', sign: '#f2f2f2', text: '#b33a1c', door: '#5e1e0e' },
+  { name: 'BIKE SHOP', sub: 'Punctures · Jobbie Tyres', front: '#1b7f4e', accent: '#ffd23f', sign: '#ffd23f', text: '#124d30', door: '#0e3f27' },
+  { name: 'GROCER', sub: 'Neeps · Tatties · Bags', front: '#4f8a2b', accent: '#fff4d6', sign: '#fff4d6', text: '#335a1c', door: '#2c4a18' },
+  { name: 'THE TAVERN', sub: 'Pints · Pies · Fitba', front: '#4a1e1e', accent: '#d4a84b', sign: '#4a1e1e', text: '#d4a84b', door: '#2a1010' },
+  { name: 'INDIAN', sub: 'Takeaway · Curry Night', front: '#a0302e', accent: '#f6c445', sign: '#f6c445', text: '#7a1f1d', door: '#5a1a19' },
+  { name: 'CHINESE', sub: 'Takeaway · Salt & Chilli', front: '#b3121b', accent: '#ffd23f', sign: '#b3121b', text: '#ffd23f', door: '#5e0a0e' },
+  { name: 'KEBABS', sub: 'Open Till 3am (Ish)', front: '#e8e2d0', accent: '#d62828', sign: '#d62828', text: '#ffffff', door: '#5a5a5a' },
+  { name: 'DRY CLEANERS', sub: 'Kilts Pressed · Stains Gone', front: '#5d8fb5', accent: '#ffffff', sign: '#ffffff', text: '#2f5f85', door: '#2f4f68' },
+  { name: 'BARBER', sub: 'Short Back & Sides', front: '#1e3a5f', accent: '#c8102e', sign: '#f4f1ea', text: '#1e3a5f', door: '#12243b' },
+  { name: 'BEER & WINE', sub: 'Scotch · Ginger Wine', front: '#3c2a4d', accent: '#d9b44a', sign: '#3c2a4d', text: '#f0dfa8', door: '#22172c' },
 ];
 // Popular round here. Dark windows, curtains shut, nobody home till August.
 const SECOND_HOMES = [
