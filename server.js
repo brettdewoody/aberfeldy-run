@@ -9,6 +9,14 @@ const fs = require('fs');
 const path = require('path');
 const { validate, insert, publicScores: toPublic, makeRateLimiter } = require('./lib/leaderboard');
 const stats = require('./lib/stats');
+const runs = require('./lib/runs');
+const crypto = require('crypto');
+
+// Signs run tickets/receipts. Set RUN_SECRET to keep tickets valid across restarts.
+const RUN_SECRET = process.env.RUN_SECRET || crypto.randomBytes(24).toString('hex');
+const usedRuns = new Set(); // one-time keys: fin-<id>, lb-<id>
+const claimOnce = (key) => (usedRuns.has(key) ? false : (usedRuns.add(key), true));
+const hostOf = (req) => (req.headers.host || '').split(':')[0];
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -50,9 +58,49 @@ function json(res, status, body) {
 
 const rateLimited = makeRateLimiter();
 
+function readJson(req, res, max, cb) {
+  let body = '';
+  req.on('data', (chunk) => { body += chunk; if (body.length > max) req.destroy(); });
+  req.on('end', () => {
+    let data;
+    try { data = JSON.parse(body); } catch (e) { return json(res, 400, { error: 'Bad request' }); }
+    cb(data);
+  });
+}
+
+const startLimit = makeRateLimiter(1000);
+function bumpStats(ev) {
+  const today = stats.dayKey();
+  statData.days[today] = stats.applyEvent(statData.days[today], ev);
+  try { persistStats(); } catch (e) { console.error('Failed to save stats', e); }
+}
+
+// Run tickets: see lib/runs.js
+function handleRun(req, res, p) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  if (!runs.sameSite(req, hostOf(req))) return json(res, 403, { error: 'Not from the game.' });
+  if (p.endsWith('/start')) {
+    if (startLimit(req.socket.remoteAddress || '')) return json(res, 429, { error: 'Slow down.' });
+    bumpStats({ type: 'run' });
+    return json(res, 200, { ticket: runs.newTicket(RUN_SECRET) });
+  }
+  readJson(req, res, 1024, (data) => {
+    const now = Date.now();
+    const ticket = runs.open(RUN_SECRET, data && data.ticket);
+    if (!ticket) return json(res, 400, { error: 'Bad ticket.' });
+    const dist = Number(data.dist), score = Number(data.score);
+    const err = runs.checkFinish(ticket, now, dist, score);
+    if (err) return json(res, 400, { error: err });
+    if (!claimOnce(`fin-${ticket.id}`)) return json(res, 409, { error: 'That run was already finished.' });
+    bumpStats({ type: 'finish', dist, score });
+    json(res, 200, { receipt: runs.newReceipt(RUN_SECRET, ticket, now, dist, score) });
+  });
+}
+
 function handleApi(req, res) {
   if (req.method === 'GET') return json(res, 200, { scores: publicScores() });
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  if (!runs.sameSite(req, hostOf(req))) return json(res, 403, { error: 'Not from the game.' });
 
   let body = '';
   req.on('data', (chunk) => {
@@ -62,10 +110,14 @@ function handleApi(req, res) {
   req.on('end', () => {
     let data;
     try { data = JSON.parse(body); } catch (e) { return json(res, 400, { error: 'Bad request' }); }
-    const v = validate(data);
+    const receipt = runs.open(RUN_SECRET, data && data.receipt);
+    const rErr = receipt ? runs.checkReceipt(receipt, Date.now()) : 'Bad receipt.';
+    if (rErr) return json(res, 400, { error: rErr });
+    const v = validate({ initials: data.initials, score: receipt.score });
     if (v.error) return json(res, 400, { error: v.error });
     const ip = req.socket.remoteAddress || '';
     if (rateLimited(ip)) return json(res, 429, { error: 'Haud on, too fast. Try again in a sec.' });
+    if (!claimOnce(`lb-${receipt.id}`)) return json(res, 409, { error: 'That run is already saved.' });
 
     const result = insert(scores, { initials: v.initials, score: v.score, t: Date.now() });
     scores = result.scores;
@@ -105,18 +157,20 @@ function persistStats() {
   fs.writeFileSync(`${STATS_FILE}.tmp`, JSON.stringify(statData));
   fs.renameSync(`${STATS_FILE}.tmp`, STATS_FILE);
 }
+const visitLimit = makeRateLimiter(5000);
 function handleStats(req, res, p) {
   if (p.endsWith('/api/event')) {
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+    if (!runs.sameSite(req, hostOf(req))) return json(res, 403, { error: 'Not from the game.' });
     let body = '';
     req.on('data', (c) => { body += c; if (body.length > 512) req.destroy(); });
     req.on('end', () => {
       let ev;
       try { ev = stats.validateEvent(JSON.parse(body)); } catch (e) { return json(res, 400, { error: 'Bad request' }); }
       if (ev.error) return json(res, 400, { error: ev.error });
-      const today = stats.dayKey();
-      statData.days[today] = stats.applyEvent(statData.days[today], ev);
-      try { persistStats(); } catch (e) { console.error('Failed to save stats', e); }
+      if (ev.type !== 'visit') return json(res, 400, { error: 'Runs are counted by the server.' });
+      if (visitLimit(req.socket.remoteAddress || '')) return json(res, 200, { ok: false }); // quietly ignored
+      bumpStats(ev);
       json(res, 200, { ok: true });
     });
     return;
@@ -131,6 +185,7 @@ function handleStats(req, res, p) {
 const server = http.createServer((req, res) => {
   const p = (req.url || '').split('?')[0];
   if (p.endsWith('/api/event') || p.endsWith('/api/stats')) return handleStats(req, res, p);
+  if (p.endsWith('/api/run/start') || p.endsWith('/api/run/finish')) return handleRun(req, res, p);
   if (p === '/api/scores' || p.endsWith('/api/scores')) return handleApi(req, res);
   if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); return res.end(); }
   serveStatic(req, res);

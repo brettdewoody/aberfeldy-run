@@ -432,16 +432,21 @@ const Board = (() => {
       return local.get();
     }
   }
-  async function submit(initials, score) {
+  // finishP resolves to { receipt } from the server, { error } if the run was rejected,
+  // or { offline } when there's no server (then scores are kept on this device).
+  async function submit(initials, score, finishP) {
+    const fin = (await finishP) || { offline: true };
+    if (fin.offline) { mode = 'local'; return local.add(initials, score); }
+    if (fin.error) throw new BoardError(fin.error);
     let r;
     try {
       r = await fetch('api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ initials, score }),
+        body: JSON.stringify({ initials, receipt: fin.receipt }),
       });
     } catch (e) { mode = 'local'; return local.add(initials, score); }
-    if (r.status === 400 || r.status === 429) {
+    if ([400, 403, 409, 429].includes(r.status)) {
       const j = await r.json().catch(() => ({}));
       throw new BoardError(j.error || 'Could not save that score.');
     }
@@ -455,6 +460,30 @@ const Board = (() => {
   }
   return { fetchTop, submit, get mode() { return mode; } };
 })();
+
+// Run tickets (see lib/runs.js): the server signs the start of each run and checks the finish,
+// so a score can't be typed in or replayed. Without a server everything still works locally.
+const Runs = {
+  async start() {
+    try {
+      const r = await fetch('api/run/start', { method: 'POST' });
+      return r.ok ? (await r.json()).ticket || null : null;
+    } catch (e) { return null; }
+  },
+  async finish(ticketP, dist, score) {
+    const ticket = await ticketP;
+    if (!ticket) return { offline: true };
+    try {
+      const r = await fetch('api/run/finish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket, dist, score }),
+      });
+      const j = await r.json().catch(() => ({}));
+      return r.ok && j.receipt ? { receipt: j.receipt } : { error: j.error || 'Could not check that run.' };
+    } catch (e) { return { offline: true }; }
+  },
+};
 
 // ---------------------------------------------------------------- game state
 let G = null;
@@ -2180,7 +2209,7 @@ function hideCaption() { clearTimeout(cap.timer); cap.root.classList.add('hidden
 function startGame() {
   Sound.init();
   newGame(false);
-  track('run');
+  G.ticketP = Runs.start();
   mode = 'play';
   show(null);
   hud.root.classList.remove('hidden');
@@ -2210,7 +2239,7 @@ function resume() {
 let saved = false;
 function gameOver() {
   mode = 'over';
-  track('finish', { dist: Math.floor(G.dist), score: G.score });
+  G.finishP = Runs.finish(G.ticketP, Math.floor(G.dist), G.score);
   hud.pause.classList.add('hidden');
   hideCaption();
   Sound.sleep();
@@ -2248,7 +2277,7 @@ $('saveForm').addEventListener('submit', async (e) => {
   $('saveBtn').disabled = true;
   $('initials').blur();
   try {
-    const res = await Board.submit(ini, G.score);
+    const res = await Board.submit(ini, G.score, G.finishP);
     saved = true;
     store.set('ajd_initials', ini);
     renderBoard(res.scores, res.rank);

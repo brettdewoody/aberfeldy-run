@@ -63,6 +63,24 @@ To turn it on:
 2. Repo **Settings → Secrets and variables → Actions → Variables →** add `DEPLOY_PAGES` = `true`.
 3. Push to `main` (or run the "Deploy to GitHub Pages" workflow by hand).
 
+## Cheat protection
+
+Scores can't simply be posted to the server:
+
+1. **RUN!** asks the server for a ticket recording when the run started, signed with `RUN_SECRET`.
+2. At **game over** the game sends the ticket, distance and score. The server checks the distance was possible
+   in the real time since the ticket (the game's top speed plus bike boosts) and that the score fits the
+   distance, then returns a signed receipt.
+3. Only a receipt can be saved to the Top 10, the score comes from the receipt, and each run is accepted once.
+
+Runs and finishes in the stats are counted from those same server steps, not from messages the browser sends.
+API requests must come from the game's own site, and visits are rate-limited (IP addresses are only held
+briefly in memory, never stored). This stops typed-in, edited and replayed scores; it can't stop someone who
+writes a bot that genuinely plays the game, which no browser game can.
+
+Set `RUN_SECRET` (any long random string) in Netlify's environment variables. Without it, saving to the
+global Top 10 is turned off and scores are kept on each device.
+
 ## Play statistics
 
 The game keeps plain daily counts: visits, new players, runs started, runs finished, distance and best
@@ -93,6 +111,8 @@ It has no dependencies, so you can also run it on any small server if you'd rath
 | `public/` | The whole game (HTML, CSS, one JS file). No build step. |
 | `lib/leaderboard.js` | Top 10 rules: validation, rude-word filter, ranking. |
 | `netlify/functions/scores.mjs` | Leaderboard API on Netlify (uses `@netlify/blobs`). |
+| `lib/runs.js` | Run tickets, receipts and the anti-cheat checks. |
+| `netlify/functions/runs.mjs` | Ticket API on Netlify (`/api/run/start`, `/api/run/finish`). |
 | `lib/stats.js` | Play statistics: event validation and daily totals. |
 | `netlify/functions/stats.mjs` | Stats API on Netlify (`/api/event`, `/api/stats`). |
 | `public/stats.html` | The private stats page. |

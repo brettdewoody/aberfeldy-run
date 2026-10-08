@@ -1,42 +1,31 @@
 // Play statistics on Netlify, stored in Netlify Blobs.
-//   POST /api/event  {type: 'visit'|'run'|'finish', first?, dist?, score?}   (sent by the game)
+//   POST /api/event  {type: 'visit', first?}   (sent by the game; runs/finishes are counted
+//                                               server-side by /api/run, so they can't be faked)
 //   GET  /api/stats?key=STATS_KEY                                         (the private stats page)
 // Only daily counts are stored; nothing identifies a player.
 import { getStore } from '@netlify/blobs';
 import stats from '../../lib/stats.js';
+import runs from '../../lib/runs.js';
+import leaderboard from '../../lib/leaderboard.js';
+import blobs from '../../lib/update-json.js';
 
 const { validateEvent, applyEvent, summarize, dayKey, cleanDay, needsCleaning } = stats;
+const { updateJSON } = blobs;
+const visitLimit = leaderboard.makeRateLimiter(5000); // in memory only; IPs are never stored
 
 const json = (status, body) => new Response(JSON.stringify(body), {
   status,
   headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
 });
 
-// Read-modify-write with an ETag check, retried if someone else wrote in between.
-async function updateJSON(store, key, fn) {
-  for (let attempt = 0; attempt < 8; attempt++) {
-    if (attempt) await new Promise((r) => setTimeout(r, Math.random() * 40 * attempt));
-    const cur = await store.getWithMetadata(key, { type: 'json' });
-    const next = fn(cur ? cur.data : null);
-    if (next === null) return true; // nothing to change
-    const { modified } = await store.setJSON(key, next, cur ? { onlyIfMatch: cur.etag } : { onlyIfNew: true });
-    if (modified) return true;
-  }
-  return false;
-}
+export default (req, context) => handleStats(req, getStore({ name: 'stats', consistency: 'strong' }), blobs.envVar('STATS_KEY'), context.ip || '');
 
-export default (req) => handleStats(req, getStore({ name: 'stats', consistency: 'strong' }), statsKey());
-
-function statsKey() {
-  try { if (typeof Netlify !== 'undefined' && Netlify.env) return Netlify.env.get('STATS_KEY') || ''; } catch (e) { /* not on Netlify */ }
-  return process.env.STATS_KEY || '';
-}
-
-export async function handleStats(req, store, key) {
+export async function handleStats(req, store, key, ip = '') {
   const url = new URL(req.url);
 
   if (url.pathname.endsWith('/api/event')) {
     if (req.method !== 'POST') return json(405, { error: 'Method not allowed' });
+    if (!runs.sameSite(req, url.hostname)) return json(403, { error: 'Not from the game.' });
     let data;
     try {
       const text = await req.text();
@@ -47,6 +36,8 @@ export async function handleStats(req, store, key) {
     }
     const ev = validateEvent(data);
     if (ev.error) return json(400, { error: ev.error });
+    if (ev.type !== 'visit') return json(400, { error: 'Runs are counted by the server.' });
+    if (visitLimit(ip)) return json(200, { ok: false }); // quietly ignored, not counted
     const today = dayKey();
     const ok = await updateJSON(store, `day-${today}`, (rec) => applyEvent(rec, ev));
     return json(ok ? 200 : 429, { ok });
