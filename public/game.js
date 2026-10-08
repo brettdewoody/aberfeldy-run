@@ -531,7 +531,10 @@ function fillWorld() {
     const len = rand(3.8, 6.5);
     const wall = pick(WALL_COLORS);
     const shop = Math.random() < 0.25 ? pick(SECOND_HOMES) : pick(SHOPS);
-    G.blds.push({ z0: G.nextBld, z1: G.nextBld + len, h: rand(3.4, 6.4), wall, side: mix(wall, '#000000', 0.25), shop });
+    // Hanging signs block the view a bit (good), but one on every shop was too many: about a third, never two in a row.
+    const prev = G.blds[G.blds.length - 1];
+    const sign = !(prev && prev.sign) && Math.random() < 0.5;
+    G.blds.push({ z0: G.nextBld, z1: G.nextBld + len, h: rand(3.4, 6.4), wall, side: mix(wall, '#000000', 0.25), shop, sign });
     G.nextBld += len + (Math.random() < 0.25 ? rand(0.8, 2.2) : 0);
   }
   while (G.nextLM < horizon) {
@@ -2268,7 +2271,7 @@ function collectSprites() {
   const D = G.dist;
   for (const b of G.blds) {
     const z = b.z0 - D + 0.8;
-    if (z < b.z1 - D && z > 1.5) {
+    if (b.sign && z < b.z1 - D && z > 1.5) {
       add(z, () => sprite(WALL_X, 3.0, z, 2.2, () => {
         ctx.globalAlpha *= clamp((z - 1.5) / 3.5, 0, 1);
         drawShopSign(b.shop);
