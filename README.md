@@ -5,7 +5,7 @@ Run along a street of Aberfeldy shopfronts in your kilt and tammy, past Wade's B
 Memorial, the Birks o' Aberfeldy, the distillery, Castle Menzies and some unimpressed Highland coos,
 with Schiehallion behind you the whole way.
 
-Made in Aberfeldy by Brett DeWoody, and built with AI (Claude, by Anthropic) in about an hour: Brett described the
+Made in Aberfeldy by Brett DeWoody, from an original idea by Calum Maclean, and built with AI (Claude, by Anthropic) in about an hour: Brett described the
 game and played each version on a phone, and Claude wrote all of the code.
 
 ## How to play
