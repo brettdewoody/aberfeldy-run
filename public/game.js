@@ -32,6 +32,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } },
 };
 const FONT = '"Luckiest Guy", Impact, "Arial Black", sans-serif';
+const CHALK_FONT = '"Gochi Hand", "Comic Sans MS", cursive';
 
 // Play statistics: plain counts only. Nothing identifies a player; no id is sent or stored.
 // "New player" reuses the How to Play flag the game already keeps for showing that page once.
@@ -85,8 +86,15 @@ const DEATH = {
   log: ['Tripped over a beaver log.', 'Felled by a beaver. Well, a log.'],
   dam: ['Ran into a beaver dam. On a pavement.', 'The beaver built that in four seconds.'],
   suv: ['Ran into a second-home 4x4.', "Splatted on a Range Rover. They're back in August."],
+  chalked: ['It was circled. In chalk. Ye still stood in it.', 'There was literally a circle round it.', 'The Chalk Lady circled that one specially.'],
 };
-const QUIPS = ['Och, that\'s mingin\'.', 'Help ma boab!', 'Pure honkin\'.', 'Yer maw\'s gonnae kill ye.', 'Every. Single. Time.', 'The Council will hear about this.', 'Smells like a {day}.'];
+const QUIPS = ['Och, that\'s mingin\'.', 'Help ma boab!', 'Pure honkin\'.', 'Yer maw\'s gonnae kill ye.', 'Every. Single. Time.', 'The Council will hear about this.', 'Smells like a {day}.', 'The Chalk Lady will be circling that one tomorrow.'];
+
+// The Chalk Lady: circles jobbies and leaves messages on the pavement. Her chalk pickup draws the safe line.
+const CHALK_COLS = ['#ffffff', '#ff8fd0', '#7fd6ff', '#ffe45c'];
+const CHALK_MSGS = ['PICK UP YER POO', 'BAG IT & BIN IT', 'WHOSE DUG?!', 'YER DUG, YER JOB', 'DAY 47. STILL HERE.', 'SHAME', 'WE SEE YOU', 'THE BIN IS RIGHT THERE', 'NOT YER DUG\'S TOILET'];
+const CHALK_TAGS = ['POO!', 'JOBBIE!', 'WHY?!', 'SHAME', 'DUG POO'];
+const CHALK_TIME = 8;
 
 // Landmarks on the left verge. Wade's Bridge always comes first.
 const LANDMARK_X = {
@@ -124,6 +132,7 @@ const HAZARD_INFO = {
   dog: ['BEAVER!', "Reintroduced, and busy. It's damming yer pavement."],
   suv: ['SECOND-HOME 4x4!', "Parked on the pavement till August. Go round it."],
   bike: ['A BIKE!', 'Jump at the top to grab it. Ride the road, skip ahead.'],
+  chalk: ['THE CHALK LADY!', "Grab her chalk and she'll draw ye the safe line."],
 };
 const LM_KEYS = Object.keys(LANDMARK_X);
 
@@ -501,8 +510,8 @@ const GRAV = 30, JUMP_V = 9.2;
 function newGame(attract) {
   G = {
     attract, t: 0, dist: 0, speed: attract ? 8 : 10, bonus: 0, bags: 0, dodged: 0, score: 0,
-    p: { lane: 1, x: 0, y: 0, vy: 0, air: false, fast: false, phase: 0, welly: 0, bike: 0, grace: 0, lastLane: -9, jumpBuf: 0 },
-    objs: [], scen: [], blds: [], parts: [], floats: [], splats: [], drops: [],
+    p: { lane: 1, x: 0, y: 0, vy: 0, air: false, fast: false, phase: 0, welly: 0, bike: 0, chalk: 0, grace: 0, lastLane: -9, jumpBuf: 0 },
+    chalks: [], nextChalk: attract ? 12 : 22, objs: [], scen: [], blds: [], parts: [], floats: [], splats: [], drops: [],
     clouds: Array.from({ length: 6 }, () => ({ x: Math.random(), y: rand(0.03, 0.22), s: rand(0.6, 1.4), v: rand(0.004, 0.012) })),
     nextRow: 34, nextBld: NEAR_Z - 1, nextLamp: 5, nextTree: NEAR_Z, nextLM: attract ? 16 : 48, nextBin: 11, nextTractor: rand(80, 160),
     // Real runs open with Wade's Bridge; the title-screen backdrop never shows it, so
@@ -544,6 +553,10 @@ function fillWorld() {
     G.scen.push({ k: 'lamp', x: KERB_X - 0.05, wz: G.nextLamp, sign: r < 0.45 ? 'fine' : r < 0.75 ? pick(STREETS) : null });
     G.nextLamp += rand(10, 14);
   }
+  while (G.nextChalk < horizon) {
+    G.chalks.push({ wz: G.nextChalk, text: pick(CHALK_MSGS), col: pick(CHALK_COLS), rot: rand(-0.12, 0.12), x: rand(-0.25, 0.35) });
+    G.nextChalk += rand(28, 50);
+  }
   while (G.nextBin < horizon) {
     G.scen.push({ k: 'bin', x: WALL_X - 0.22, wz: G.nextBin, seed: Math.random() * 10 });
     G.nextBin += rand(18, 32);
@@ -562,7 +575,10 @@ function fillWorld() {
 
 const laneX = (l) => l - 1;
 function addPoo(lane, wz, size, extra) {
-  G.objs.push(Object.assign({ k: 'poo', lane, x: laneX(lane), wz, size, seed: Math.random() * 10 }, extra));
+  const o = Object.assign({ k: 'poo', lane, x: laneX(lane), wz, size, seed: Math.random() * 10 }, extra);
+  // The Chalk Lady has been round: some jobbies come circled, which you can spot from further off.
+  if (!o.born && size !== 'mega' && Math.random() < 0.3) o.chalk = { col: pick(CHALK_COLS), tag: pick(CHALK_TAGS) };
+  G.objs.push(o);
 }
 // Collectibles: golden chanterelles, foraged in the woods round Aberfeldy (kind 'bag' is historical).
 // Mushrooms grow on the pavement (y = 0): run through them to pick them, jumping misses them.
@@ -585,6 +601,7 @@ function spawnRow(wz) {
     ['smear', 0.9 + d], ['gauntlet', d < 0.35 ? 0 : d * 1.6],
     ['suv', G.t < 12 ? 0 : 0.8 + d * 0.6],
     ['bike', G.attract || G.t < 25 || G.p.bike > 0 || G.objs.some((o) => o.k === 'bike') ? 0 : 0.3],
+    ['chalk', G.attract || G.t < 20 || G.p.chalk > 0 || G.objs.some((o) => o.k === 'chalk') ? 0 : 0.3],
   ];
   let r = Math.random() * table.reduce((s, e) => s + e[1], 0);
   let kind = table[0][0];
@@ -628,6 +645,10 @@ function spawnRow(wz) {
       break;
     case 'welly':
       G.objs.push({ k: 'welly', lane: lanes[0], x: laneX(lanes[0]), wz, y: 0.6 });
+      break;
+    case 'chalk':
+      G.objs.push({ k: 'chalk', lane: lanes[0], x: laneX(lanes[0]), wz, y: 0.6 });
+      if (Math.random() < 0.6) addPoo(lanes[1], wz, pick(['small', 'splat']));
       break;
     case 'bagtree': {
       // Bags hang over two lanes. A splat under one of them means you can't run it or jump it.
@@ -767,7 +788,7 @@ function stomp(o) {
 
 function die(o) {
   mode = 'dying';
-  G.killer = o.size || o.k;
+  G.killer = o.chalk ? 'chalked' : o.size || o.k;
   G.dyingT = 0;
   G.shake = 26;
   G.flash = 1;
@@ -811,6 +832,10 @@ function update(dt) {
     }
     p.jumpBuf = Math.max(0, p.jumpBuf - dt);
     p.phase += dt * (8 + G.speed * 0.75); // stride rate tracks speed: ~2.5 strides/s at the start, ~5 at top speed
+    if (p.chalk > 0) {
+      p.chalk -= dt;
+      if (p.chalk <= 0) { p.chalk = 0; floater('CHALK\'S RUN OOT', 'Ye\'re on yer own', { color: '#fff', size: 32 }); }
+    }
     if (p.welly > 0) {
       p.welly -= dt;
       if (p.welly <= 0) floater('WELLIES AFF', 'Back tae normal shoes', { color: '#fff', size: 34 });
@@ -822,10 +847,11 @@ function update(dt) {
 
     fillWorld();
     const cut = G.dist + NEAR_Z - 1;
-    G.objs = G.objs.filter((o) => o.wz > cut && !(o.k === 'dog' && Math.abs(o.x) > 7));
+    G.objs = G.objs.filter((o) => o.wz + (o.len || 0) > cut && !(o.k === 'dog' && Math.abs(o.x) > 7));
     G.scen = G.scen.filter((s) => s.wz > cut - 4);
     G.blds = G.blds.filter((b) => b.z1 > cut);
     G.lmZones = G.lmZones.filter((z) => z[1] > cut);
+    G.chalks = G.chalks.filter((c) => c.wz > cut);
 
     if (!G.attract) {
       G.score = Math.floor(G.dist) + G.bags * 10 + G.bonus;
@@ -900,7 +926,8 @@ function updateObjs(dt, prev) {
       if (!o.passed && zNow < -0.35) {
         o.passed = true;
         G.dodged++;
-        if (o.jumped) { G.bonus += 10; floater('+10', pick(EXCL.hurdle)); }
+        if (o.jumped && o.chalk) { G.bonus += 15; floater('+15', 'CHALKED IT!', { color: '#ffd1ea' }); }
+        else if (o.jumped) { G.bonus += 10; floater('+10', pick(EXCL.hurdle)); }
         else if (o.size === 'mega' && dx < 1.6 && G.t - p.lastLane < 0.7) {
           G.bonus += 25; floater('+25', pick(EXCL.close), { color: '#7dff7a' }); Sound.sfx.close();
         }
@@ -956,7 +983,7 @@ function updateObjs(dt, prev) {
         Sound.sfx.bell();
         vibrate(40);
       }
-    } else if (o.k === 'bag' || o.k === 'welly') {
+    } else if (o.k === 'bag' || o.k === 'welly' || o.k === 'chalk') {
       if (overlap && dx < 0.62 && o.y > p.y - 0.35 && o.y < p.y + 1.55) {
         o.dead = true;
         const [sx, sy] = P(o.x, o.y, Math.max(zNow, 0));
@@ -965,6 +992,12 @@ function updateObjs(dt, prev) {
           burst(sx, sy, 8, ['#f2a900', '#ffd966', '#ffffff'], 0.5);
           Sound.sfx.bag();
           if (G.bags % 10 === 0) floater(`${G.bags} CHANTERELLES!`, 'Forager supreme', { color: '#ffd24d', size: 40 });
+        } else if (o.k === 'chalk') {
+          p.chalk = CHALK_TIME;
+          burst(sx, sy, 30, CHALK_COLS, 1);
+          floater('THE CHALK LADY!', 'Follow her line', { color: '#ffd1ea', size: 48, life: 1.6 });
+          Sound.sfx.welly();
+          vibrate(40);
         } else {
           p.welly = 6;
           burst(sx, sy, 30, ['#ffd400', '#fff3a0', '#ffffff'], 1);
@@ -1141,6 +1174,220 @@ function drawGround() {
     for (let i = n - 1; i >= 1; i--) c.push(P(o.x + Math.sin(i * 0.5 + o.seed) * 0.08 + 0.05, 0, Math.max(z + (o.len * i) / n, NEAR_Z)));
     poly(c, '#3b2412');
   }
+  drawChalk();
+}
+
+// ---------------------------------------------------------------- render: chalk on the pavement
+// Everything here lies flat on the ground, so it's drawn before any sprite and can't hide a hazard.
+function chalkStyle(col, s, alpha = 0.9) {
+  ctx.strokeStyle = col; ctx.fillStyle = col;
+  ctx.lineWidth = Math.max(1.2, s * 0.045);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.globalAlpha = alpha * (1 - G.rain * 0.45); // the rain washes it a bit
+}
+// Stroke a path given in world units (u across, v along the pavement) from (x0, z0).
+function chalkPath(pts, x0, z0, closed) {
+  ctx.beginPath();
+  pts.forEach(([u, v], i) => {
+    const [sx, sy] = P(x0 + u, 0, Math.max(z0 + v, NEAR_Z));
+    if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy);
+  });
+  if (closed) ctx.closePath();
+  ctx.stroke();
+}
+// Text lying on the pavement, reading away from you. h = letter height in world units.
+function chalkText(text, x, z, h, maxW, rot = 0) {
+  if (z < 0.2 || z > FAR_Z) return;
+  const [ax, ay, s] = P(x, 0, z);
+  const [bx, by] = P(x, 0, z + 0.1);
+  const fx = (bx - ax) * 10, fy = (by - ay) * 10; // screen step per world unit away from you
+  ctx.save();
+  ctx.transform(s / 100, 0, -fx / 100, -fy / 100, ax, ay); // 100 local px = 1 world unit; local y runs toward you
+  ctx.rotate(rot);
+  ctx.scale(1, 2.2); // stretched lengthways like road markings, so it reads from a distance
+  let size = h * 100;
+  ctx.font = `${size}px ${CHALK_FONT}`;
+  const m = ctx.measureText(text).width;
+  if (m > maxW * 100) { size *= maxW * 100 / m; ctx.font = `${size}px ${CHALK_FONT}`; }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = size * 0.09; ctx.lineJoin = 'round';
+  ctx.strokeText(text, 0, 0);
+  ctx.fillText(text, 0, 0);
+  ctx.globalAlpha *= 0.4; ctx.fillText(text, size * 0.04, -size * 0.03); // a second, scratchier pass
+  ctx.restore();
+}
+function ringPts(r, seed, n = 22) {
+  const pts = [];
+  for (let i = 0; i <= n + 2; i++) { // overshoots the start, like a real hand-drawn circle
+    const a = (i / n) * TAU + seed;
+    const rr2 = r * (1 + Math.sin(i * 1.7 + seed * 3) * 0.06 + i * 0.004);
+    pts.push([Math.cos(a) * rr2, Math.sin(a) * rr2 * 0.85]);
+  }
+  return pts;
+}
+
+function drawChalk() {
+  ctx.save();
+  const D = G.dist;
+  // messages on the slabs
+  for (const c of G.chalks) {
+    const z = c.wz - D;
+    if (z < 0.2 || z > FAR_Z * 0.7) continue;
+    chalkStyle(c.col, 1, 0.9);
+    chalkText(c.text, c.x, z, 0.6, 3.0, c.rot);
+  }
+  // circled jobbies
+  for (const o of G.objs) {
+    if (o.k !== 'poo' || !o.chalk) continue;
+    const z = o.wz - D;
+    if (z < NEAR_Z + 0.6 || z > FAR_Z * 0.8) continue;
+    const s = P(o.x, 0, z)[2];
+    chalkStyle(o.chalk.col, s);
+    chalkPath(ringPts(0.46, o.seed), o.x, z);
+    // arrow pointing at it from the near side, and a scrawled word
+    const side = o.x > 0.5 ? -1 : 1;
+    chalkPath([[side * 0.95, -0.9], [side * 0.5, -0.45]], o.x, z);
+    chalkPath([[side * 0.5, -0.62], [side * 0.5, -0.45], [side * 0.68, -0.45]], o.x, z);
+    chalkText(o.chalk.tag, o.x + side * 0.6, z - 1.2, 0.36, 1.2, side * 0.15);
+  }
+  if (G.p.chalk > 0 && (mode === 'play' || mode === 'paused')) drawChalkLine();
+  if (!G.attract && (mode === 'dying' || mode === 'over')) drawOutline();
+  ctx.restore();
+}
+
+// A crime-scene outline of the runner, sprawled on the pavement ahead.
+const OUTLINE = [
+  [-0.08, 1.72], [-0.5, 2.02], [-0.62, 1.92], [-0.16, 1.58], [-0.18, 1.04], [-0.5, 0.56], [-0.38, 0.46],
+  [-0.02, 0.92], [0.3, 0.42], [0.44, 0.5], [0.18, 1.04], [0.17, 1.5], [0.62, 1.32], [0.6, 1.2], [0.13, 1.66], [0.1, 1.72],
+];
+function drawOutline() {
+  const k = mode === 'dying' ? clamp((G.dyingT - 0.3) * 1.5, 0, 1) : 1;
+  if (k <= 0) return;
+  const x0 = G.p.x, z0 = 0.5;
+  chalkStyle('#ffffff', P(x0, 0, z0 + 1)[2], 0.95 * k);
+  chalkPath(OUTLINE, x0, z0, true);
+  chalkPath(ringPts(0.2, 0.4, 16).map(([u, v]) => [u + 0.01, v + 1.93]), x0, z0);
+}
+
+// The Chalk Lady's line: the safe way through what's coming, with JUMP marked where you need it.
+function chalkRoute() {
+  const D = G.dist, look = 46, rows = [], spd = G.speed;
+  const rowAt = (z) => {
+    let r = rows.find((q) => Math.abs(q.z - z) < 2.5);
+    if (!r) { r = { z, end: z, run: [0, 0, 0], jump: [0, 0, 0], want: [0, 0, 0], lead: spd * 0.3 }; rows.push(r); }
+    r.z = Math.min(r.z, z);
+    return r;
+  };
+  for (const o of G.objs) {
+    if (o.dead) continue;
+    const z = o.wz - D;
+    if (z > look || z + (o.len || 0) < -1.5) continue;
+    let r;
+    if (o.k === 'poo') { r = rowAt(z); r.run[o.lane] = 1; if (POO[o.size].h > 5) r.jump[o.lane] = 1; }
+    else if (o.k === 'smear') {
+      r = rowAt(z); r.run[o.lane] = 1; r.end = Math.max(r.end, z + o.len);
+      // take off just before it, early enough to land past the far end; too long to clear means go round
+      r.lead = Math.min(r.lead, clamp((spd * 0.61 - o.len) / 2, 0.6, spd * 0.3));
+      if (spd * 0.61 - 0.6 < o.len + 0.6) r.jump[o.lane] = 1;
+    }
+    else if (o.k === 'suv') { r = rowAt(z); r.run[0] = r.jump[0] = 1; r.end = Math.max(r.end, z + o.len); }
+    else if (o.k === 'hang') { r = rowAt(z); for (const b of o.bags) if (!b.dead) r.jump[b.lane] = 1; }
+    else if (o.k === 'dog' && !o.done) { r = rowAt(z - 0.3); r.run[o.lane] = 1; if (o.mega) r.jump[o.lane] = 1; }
+    else if (o.k === 'swing') {
+      // where will the bag be when you get there? Keep clear of it, give or take a moment.
+      r = rowAt(z);
+      const tArr = G.t + z / spd;
+      for (let dtA = -0.12; dtA <= 0.12; dtA += 0.03) {
+        const th = SWING.amp * Math.sin((tArr + dtA) * o.w + o.ph), sx = SWING.len * Math.sin(th);
+        for (let l = 0; l < 3; l++) if (Math.abs(sx - laneX(l)) < 0.8) r.run[l] = r.jump[l] = 1;
+      }
+    }
+    else if (o.k === 'bike' || o.k === 'welly' || o.k === 'chalk') { r = rowAt(z); r.want[o.lane] = 1; }
+    if (r) r.end = Math.max(r.end, z);
+  }
+  rows.sort((a, b) => a.z - b.z);
+  // cheapest lane through each row: blocked lanes are out, jumps cost a little, changing lanes a little more
+  const p = G.p;
+  let cost = [0, 1, 2].map((l) => (l === p.lane ? 0 : 1e9));
+  const from = [];
+  for (const r of rows) {
+    const behind = r.end < -0.4; // already past it: it doesn't matter any more
+    const here = [0, 1, 2].map((l) => (behind ? 0 : (r.run[l] && r.jump[l] ? 1e6 : r.run[l] ? 1 : 0) - r.want[l] * 2));
+    // a row right on top of you: too late to change lane
+    const stuck = r.z < 1.2 && r.end > -0.4;
+    const next = [], back = [];
+    for (let l = 0; l < 3; l++) {
+      let bestC = Infinity, bestK = l;
+      for (let k = 0; k < 3; k++) {
+        const c = cost[k] + Math.abs(l - k) * 0.6 + (stuck && l !== k ? 1e5 : 0);
+        if (c < bestC) { bestC = c; bestK = k; }
+      }
+      next[l] = bestC + here[l]; back[l] = bestK;
+    }
+    from.push(back); cost = next;
+  }
+  let l = cost.indexOf(Math.min(...cost));
+  for (let i = rows.length - 1; i >= 0; i--) { rows[i].lane = l; rows[i].hop = !!rows[i].run[l]; l = from[i][l]; }
+  // At speed, one jump can carry you into the next row. Then take off as late as is safe and
+  // swipe down (DROP) once you're over it, so you're back on the ground in time.
+  const air = spd * 2 * JUMP_V / GRAV;
+  rows.forEach((r, i) => {
+    if (!r.hop) return;
+    // the next row where you need to be on the ground: to jump it, or to run under it
+    const n = rows.slice(i + 1).find((q) => q.hop || q.jump[q.lane]);
+    if (!n) return;
+    const needGround = n.hop ? n.z - n.lead : n.z - 1;
+    if (r.z - r.lead + air > needGround) {
+      r.lead = Math.min(r.lead, spd * 0.1 + 0.4);
+      r.dropAt = r.end + 0.8;
+    }
+  });
+  return rows;
+}
+
+function drawChalkLine() {
+  const p = G.p, rows = chalkRoute();
+  const fade = clamp(p.chalk / 1.2, 0, 1);
+  const pts = [[p.x, 0.5]];
+  for (const r of rows) {
+    const x = laneX(r.lane), zOut = r.end + 0.9;
+    if (zOut <= 0.5) { pts[0] = [x, 0.5]; continue; } // already alongside it
+    const zIn = Math.max(r.z - 2.4, pts[pts.length - 1][1] + 0.5);
+    if (zIn < zOut) pts.push([x, zIn]);
+    pts.push([x, zOut]);
+  }
+  const lastPt = pts[pts.length - 1];
+  pts.push([lastPt[0], lastPt[1] + 8]);
+  // a fat pink line with a white core, easy to see at speed
+  const u = P(0, 0, 2)[2];
+  for (const [col, w, a] of [['#ff7ac0', 0.16, 0.6], ['#ffffff', 0.07, 0.95]]) {
+    ctx.globalAlpha = a * fade;
+    ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(2, u * w);
+    ctx.setLineDash([u * 0.35, u * 0.25]);
+    ctx.lineDashOffset = -G.dist * 30;
+    ctx.beginPath();
+    pts.forEach(([x, z], i) => { const [sx, sy] = P(x, 0, Math.min(z, FAR_Z)); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); });
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  // JUMP where it's needed: chevrons and the word, at the take-off point
+  for (const r of rows) {
+    if (!r.hop) continue;
+    const x = laneX(r.lane), zt = r.z - r.lead;
+    if (zt >= 0.4) {
+      chalkStyle('#ffffff', P(x, 0, zt)[2], fade);
+      chalkPath([[-0.32, -0.15], [0, 0.2], [0.32, -0.15]], x, zt);
+      chalkPath([[-0.32, -0.45], [0, -0.1], [0.32, -0.45]], x, zt);
+      chalkStyle('#ff7ac0', 1, fade);
+      chalkText('JUMP!', x, zt - 1.1, 0.7, 1.5);
+    }
+    if (r.dropAt != null && r.dropAt > 0.4) {
+      chalkStyle('#7fd6ff', P(x, 0, r.dropAt)[2], fade);
+      chalkPath([[-0.32, 0.15], [0, -0.2], [0.32, 0.15]], x, r.dropAt);
+      chalkText('DROP!', x, r.dropAt + 0.9, 0.6, 1.4);
+    }
+  }
 }
 
 function drawBuildings() {
@@ -1309,6 +1556,23 @@ function drawWelly(o) {
     ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#c99700'; ctx.fillRect(sx - 9, -26, 16, 6);
   }
+}
+
+function drawChalkPickup(o) {
+  const t = G.t;
+  ctx.translate(0, Math.sin(t * 4) * 8);
+  ell(0, 0, 44, 44, `rgba(255,122,192,${0.25 + Math.sin(t * 8) * 0.1})`);
+  for (let i = 0; i < 6; i++) { const a = t * 2 + (i * TAU) / 6; ell(Math.cos(a) * 42, Math.sin(a) * 42, 4, 4, '#fff'); }
+  // a fat stick of pavement chalk, a wee bit worn at one end
+  ctx.save(); ctx.rotate(-0.5);
+  ctx.fillStyle = '#ffd1ea'; ctx.strokeStyle = '#b0457e'; ctx.lineWidth = 3;
+  rr(-30, -11, 60, 22, 9); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#ffffff'; rr(14, -11, 16, 22, 9); ctx.fill();
+  ctx.strokeStyle = '#b0457e'; rr(14, -11, 16, 22, 9); ctx.stroke();
+  ell(-14, -5, 10, 3, 'rgba(255,255,255,0.7)');
+  ctx.restore();
+  ctx.font = `26px ${FONT}`; ctx.textAlign = 'center'; ctx.lineWidth = 6; ctx.strokeStyle = '#3b2412';
+  ctx.strokeText('CHALK!', 0, -50); ctx.fillStyle = '#ffd1ea'; ctx.fillText('CHALK!', 0, -50);
 }
 
 function drawBikePickup(o) {
@@ -2049,6 +2313,7 @@ function collectSprites() {
     if (o.k === 'poo') add(z, () => sprite(o.x, 0, z, 1, () => drawPoo(o)));
     else if (o.k === 'bag') { if (z > NEAR_Z && z < FAR_Z) pickups.push({ z, fn: () => sprite(o.x, 0, z, 0.5, () => drawBag(o)) }); }
     else if (o.k === 'welly') add(z, () => { drawShadow(o.x, z, 0.3, 0.2); sprite(o.x, o.y, z, 0.6, () => drawWelly(o)); });
+    else if (o.k === 'chalk') add(z, () => { drawShadow(o.x, z, 0.3, 0.2); sprite(o.x, o.y, z, 0.6, () => drawChalkPickup(o)); });
     else if (o.k === 'bike') add(z, () => { drawShadow(o.x, z, 0.35, 0.2); sprite(o.x, o.y, z, 0.8, () => drawBikePickup(o)); });
     else if (o.k === 'dog' && o.state !== 'wait') add(z, () => sprite(o.x, 0, z, 1, () => drawBeaver(o)));
     else if (o.k === 'suv' && !o.dead) add(z, () => sprite(o.x, 0, z, 1.2, () => drawSuv(o)));
@@ -2101,6 +2366,15 @@ function drawOverlays() {
     ctx.font = `20px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeStyle = '#3b2412';
     ctx.strokeText('ON YER BIKE', cx, by - 15); ctx.fillStyle = '#fff'; ctx.fillText('ON YER BIKE', cx, by - 15);
+  }
+  // the Chalk Lady's line timer
+  if (G.p.chalk > 0 && (mode === 'play' || mode === 'paused')) {
+    const k = G.p.chalk / CHALK_TIME, bw = Math.min(W * 0.42, 220), bx = cx - bw / 2, by = G.p.bike > 0 ? 136 : 86;
+    ctx.fillStyle = 'rgba(59,36,18,0.8)'; rr(bx - 4, by - 4, bw + 8, 22, 11); ctx.fill();
+    ctx.fillStyle = '#ff7ac0'; rr(bx, by, Math.max(14, bw * k), 14, 7); ctx.fill();
+    ctx.font = `20px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeStyle = '#3b2412';
+    ctx.strokeText('FOLLOW THE CHALK', cx, by - 15); ctx.fillStyle = '#fff'; ctx.fillText('FOLLOW THE CHALK', cx, by - 15);
   }
   // welly vignette
   if (G.p.welly > 0) {
@@ -2348,6 +2622,7 @@ const HELP = [
     ['Chanterelle', '+10. Run through them. Jumping misses them.', () => drawBag({ wz: 0 }), 1.5, 0],
     ['Golden wellies', '6 seconds of stomping through everything.', () => drawWelly({}), 0.85, -26],
     ['Bike', 'Floats at the top of a jump. Grab it to ride the road and skip ahead.', () => drawBikePickup({}), 0.75, -14],
+    ['The Chalk Lady', 'Grab her chalk: for 8 seconds she draws the safe line. Follow it. Jump at JUMP, swipe down at DROP.', () => drawChalkPickup({}), 0.75, -14],
   ] },
 ];
 function drawSkidIcon() {
@@ -2500,9 +2775,12 @@ function frame(now) {
 resize();
 goTitle();
 track('visit', { first: !store.get('ajd_seen_help') });
-if (document.fonts && document.fonts.load) document.fonts.load(`20px "Luckiest Guy"`).catch(() => {});
+if (document.fonts && document.fonts.load) {
+  document.fonts.load(`20px "Luckiest Guy"`).catch(() => {});
+  document.fonts.load(`20px "Gochi Hand"`).catch(() => {});
+}
 requestAnimationFrame(frame);
 
 // tiny hook for automated smoke tests
-window.__ajd = { get state() { return G; }, get mode() { return mode; }, startGame, move, jump, spawnRow };
+window.__ajd = { get state() { return G; }, get mode() { return mode; }, startGame, move, jump, drop, spawnRow, chalkRoute };
 })();

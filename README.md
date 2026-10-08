@@ -33,6 +33,10 @@ with every obstacle and pickup drawn as it appears in the game.
 - 🚲 **The bike** floats at the top of a jump, above a jobbie, and is always guarded. Grab it and you're
   **on yer bike**: 5 seconds riding the road at high speed past everything on the pavement.
 - 🥾 **Golden wellies** give 6 seconds of stomping through everything, hanging bags included.
+- **The Chalk Lady** has been round: some jobbies are circled in chalk (jump one for a bonus), and her
+  messages ("PICK UP YER POO") are scrawled on the slabs. Grab her **chalk** and for 8 seconds she draws
+  the safe line ahead, marking where to **JUMP** and where to swipe down and **DROP**. Splat, and she
+  chalks your outline on the pavement.
 - It gets faster the longer you go. Sometimes it rains. This is Scotland.
 
 Landmarks you pass include Wade's Bridge, the Black Watch Memorial, the Birks o' Aberfeldy,
