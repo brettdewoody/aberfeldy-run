@@ -1197,7 +1197,7 @@ function chalkPath(pts, x0, z0, closed) {
 }
 // Text lying on the pavement, reading away from you. h = letter height in world units.
 function chalkText(text, x, z, h, maxW, rot = 0) {
-  if (z < 0.2 || z > FAR_Z) return;
+  if (z < NEAR_Z + 0.3 || z > FAR_Z) return;
   const [ax, ay, s] = P(x, 0, z);
   const [bx, by] = P(x, 0, z + 0.1);
   const fx = (bx - ax) * 10, fy = (by - ay) * 10; // screen step per world unit away from you
@@ -1232,7 +1232,7 @@ function drawChalk() {
   // messages on the slabs
   for (const c of G.chalks) {
     const z = c.wz - D;
-    if (z < 0.2 || z > FAR_Z * 0.7) continue;
+    if (z < NEAR_Z + 0.3 || z > FAR_Z * 0.7) continue;
     chalkStyle(c.col, 1, 0.9);
     chalkText(c.text, c.x, z, 0.6, 3.0, c.rot);
   }
