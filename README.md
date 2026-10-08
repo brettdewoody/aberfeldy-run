@@ -79,8 +79,18 @@ API requests must come from the game's own site, and visits are rate-limited (IP
 briefly in memory, never stored). This stops typed-in, edited and replayed scores; it can't stop someone who
 writes a bot that genuinely plays the game, which no browser game can.
 
-Set `RUN_SECRET` (any long random string) in Netlify's environment variables. Without it, saving to the
-global Top 10 is turned off and scores are kept on each device.
+Set `RUN_SECRET` (any long random string) in Netlify's environment variables. Without it, the server
+can't sign runs and nobody can save to the global Top 10.
+
+**Netlify environment variables the site needs** (Site configuration → Environment variables):
+
+| Variable | What it's for |
+| --- | --- |
+| `RUN_SECRET` | Signs run tickets and receipts for the leaderboard. Any long random string. |
+| `STATS_KEY` | The password for `/stats.html`. |
+
+Functions only pick up a changed variable on the **next deploy**, so after adding or changing one,
+use Deploys → Trigger deploy (or push any commit).
 
 ## Play statistics
 
