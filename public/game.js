@@ -1426,7 +1426,6 @@ function drawPoo(o) {
     ctx.fill(); ctx.stroke();
     ell(-12, -22, 5, 9, 'rgba(255,255,255,0.22)');
     ell(8, -14, 9, 6, 'rgba(110,62,26,0.55)');
-    fitText('WHY?!', 0, -78, 70, 22, '#fff');
     flies(3, 0, -40, 34, 14, o.seed, 2.8);
     stink(2, 54, -50, o.seed, 0.45);
   } else if (o.size === 'splat') {
