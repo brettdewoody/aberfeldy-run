@@ -3,3 +3,12 @@
   publish = "public"
   functions = "netlify/functions"
   command = ""
+
+# The old Netlify address sends everyone to the custom domain (keeping the path and any
+# ?query, e.g. /stats.html?key=...). Only this exact host is matched, so deploy previews
+# and branch URLs (main--aberfeldy-jobbie-dash.netlify.app) keep working.
+[[redirects]]
+  from = "https://aberfeldy-jobbie-dash.netlify.app/*"
+  to = "https://jobbie.run/:splat"
+  status = 301
+  force = true
