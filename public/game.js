@@ -132,7 +132,7 @@ const HAZARD_INFO = {
   dog: ['BEAVER!', "Reintroduced, and busy. It's damming yer pavement."],
   suv: ['SECOND-HOME 4x4!', "Parked on the pavement till August. Go round it."],
   bike: ['A BIKE!', 'Jump at the top to grab it. Ride the road, skip ahead.'],
-  chalk: ['THE CHALK LADY!', "Grab her chalk and she'll draw ye the safe line."],
+  chalk: ['THE CHALK LADY!', "Grab her chalk and she'll clear ye a path."],
 };
 const LM_KEYS = Object.keys(LANDMARK_X);
 
@@ -841,7 +841,7 @@ function update(dt) {
       if (p.welly <= 0) floater('WELLIES AFF', 'Back tae normal shoes', { color: '#fff', size: 34 });
     }
 
-    if (!G.attract) { updateObjs(dt, prev); updateCaptions(); } else demoPilot(dt);
+    if (!G.attract) { if (p.chalk > 0) chalkClear(); updateObjs(dt, prev); updateCaptions(); } else demoPilot(dt);
 
     for (const s of G.scen) if (s.moving) s.wz += s.moving * dt;
 
@@ -995,7 +995,7 @@ function updateObjs(dt, prev) {
         } else if (o.k === 'chalk') {
           p.chalk = CHALK_TIME;
           burst(sx, sy, 30, CHALK_COLS, 1);
-          floater('THE CHALK LADY!', 'Follow her line', { color: '#ffd1ea', size: 48, life: 1.6 });
+          floater('THE CHALK LADY!', 'Stay on her line', { color: '#ffd1ea', size: 48, life: 1.6 });
           Sound.sfx.welly();
           vibrate(40);
         } else {
@@ -1269,52 +1269,45 @@ function drawOutline() {
   chalkPath(ringPts(0.2, 0.4, 16).map(([u, v]) => [u + 0.01, v + 1.93]), x0, z0);
 }
 
-// The Chalk Lady's line: the safe way through what's coming, with JUMP marked where you need it.
+// The Chalk Lady's line: she plans a way through and clears whatever's on it, so as long as
+// you stay on her line you never need to jump. A few metres out she commits to each stretch.
+const CHALK_COMMIT = 12;
 function chalkRoute() {
-  const D = G.dist, look = 46, rows = [], spd = G.speed;
+  const D = G.dist, look = 46, rows = [];
   const rowAt = (z) => {
     let r = rows.find((q) => Math.abs(q.z - z) < 2.5);
-    if (!r) { r = { z, end: z, run: [0, 0, 0], jump: [0, 0, 0], want: [0, 0, 0], lead: spd * 0.3 }; rows.push(r); }
+    if (!r) { r = { z, end: z, objs: [], cnt: [0, 0, 0], car: [0, 0, 0], want: [0, 0, 0], fixed: null }; rows.push(r); }
     r.z = Math.min(r.z, z);
     return r;
   };
   for (const o of G.objs) {
-    if (o.dead) continue;
+    if (o.dead || o.k === 'bag' || (o.k === 'dog' && o.done)) continue;
     const z = o.wz - D;
     if (z > look || z + (o.len || 0) < -1.5) continue;
-    let r;
-    if (o.k === 'poo') { r = rowAt(z); r.run[o.lane] = 1; if (POO[o.size].h > 5) r.jump[o.lane] = 1; }
-    else if (o.k === 'smear') {
-      r = rowAt(z); r.run[o.lane] = 1; r.end = Math.max(r.end, z + o.len);
-      // take off just before it, early enough to land past the far end; too long to clear means go round
-      r.lead = Math.min(r.lead, clamp((spd * 0.61 - o.len) / 2, 0.6, spd * 0.3));
-      if (spd * 0.61 - 0.6 < o.len + 0.6) r.jump[o.lane] = 1;
-    }
-    else if (o.k === 'suv') { r = rowAt(z); r.run[0] = r.jump[0] = 1; r.end = Math.max(r.end, z + o.len); }
-    else if (o.k === 'hang') { r = rowAt(z); for (const b of o.bags) if (!b.dead) r.jump[b.lane] = 1; }
-    else if (o.k === 'dog' && !o.done) { r = rowAt(z - 0.3); r.run[o.lane] = 1; if (o.mega) r.jump[o.lane] = 1; }
-    else if (o.k === 'swing') {
-      // where will the bag be when you get there? Keep clear of it, give or take a moment.
-      r = rowAt(z);
-      const tArr = G.t + z / spd;
-      for (let dtA = -0.12; dtA <= 0.12; dtA += 0.03) {
-        const th = SWING.amp * Math.sin((tArr + dtA) * o.w + o.ph), sx = SWING.len * Math.sin(th);
-        for (let l = 0; l < 3; l++) if (Math.abs(sx - laneX(l)) < 0.8) r.run[l] = r.jump[l] = 1;
-      }
-    }
-    else if (o.k === 'bike' || o.k === 'welly' || o.k === 'chalk') { r = rowAt(z); r.want[o.lane] = 1; }
-    if (r) r.end = Math.max(r.end, z);
+    const r = rowAt(o.k === 'dog' ? z - 0.3 : z);
+    r.objs.push(o);
+    r.end = Math.max(r.end, z + (o.len || 0));
+    if (o.chalkLane != null) r.fixed = o.chalkLane;
+    if (o.k === 'poo' || o.k === 'smear' || o.k === 'dog') r.cnt[o.lane]++;
+    else if (o.k === 'hang') for (const b of o.bags) if (!b.dead) r.cnt[b.lane] += 0.5;
+    else if (o.k === 'suv') r.car[0] = 1; // she can't shift a 4x4
+    else if (o.k === 'bike' || o.k === 'welly' || o.k === 'chalk') r.want[o.lane] = 1;
   }
   rows.sort((a, b) => a.z - b.z);
-  // cheapest lane through each row: blocked lanes are out, jumps cost a little, changing lanes a little more
+  // a 4x4 is long: keep out of the kerb lane for every row alongside it
+  for (const o of G.objs) {
+    if (o.k !== 'suv' || o.dead) continue;
+    const z = o.wz - D;
+    for (const r of rows) if (r.z < z + o.len + 1.5 && r.end > z - 2.5) r.car[0] = 1;
+  }
+  // fewest things to clear, a treat if there's one going, and not too much weaving
   const p = G.p;
   let cost = [0, 1, 2].map((l) => (l === p.lane ? 0 : 1e9));
   const from = [];
   for (const r of rows) {
-    const behind = r.end < -0.4; // already past it: it doesn't matter any more
-    const here = [0, 1, 2].map((l) => (behind ? 0 : (r.run[l] && r.jump[l] ? 1e6 : r.run[l] ? 1 : 0) - r.want[l] * 2));
-    // a row right on top of you: too late to change lane
-    const stuck = r.z < 1.2 && r.end > -0.4;
+    const behind = r.end < -0.4;
+    const here = [0, 1, 2].map((l) => (behind ? 0 : (r.car[l] || (r.fixed != null && l !== r.fixed) ? 1e6 : r.cnt[l] * 0.5 - r.want[l] * 2)));
+    const stuck = r.z < 1.2 && r.end > -0.4; // too late to change lane
     const next = [], back = [];
     for (let l = 0; l < 3; l++) {
       let bestC = Infinity, bestK = l;
@@ -1327,22 +1320,28 @@ function chalkRoute() {
     from.push(back); cost = next;
   }
   let l = cost.indexOf(Math.min(...cost));
-  for (let i = rows.length - 1; i >= 0; i--) { rows[i].lane = l; rows[i].hop = !!rows[i].run[l]; l = from[i][l]; }
-  // At speed, one jump can carry you into the next row. Then take off as late as is safe and
-  // swipe down (DROP) once you're over it, so you're back on the ground in time.
-  const air = spd * 2 * JUMP_V / GRAV;
-  rows.forEach((r, i) => {
-    if (!r.hop) return;
-    // the next row where you need to be on the ground: to jump it, or to run under it
-    const n = rows.slice(i + 1).find((q) => q.hop || q.jump[q.lane]);
-    if (!n) return;
-    const needGround = n.hop ? n.z - n.lead : n.z - 1;
-    if (r.z - r.lead + air > needGround) {
-      r.lead = Math.min(r.lead, spd * 0.1 + 0.4);
-      r.dropAt = r.end + 0.8;
-    }
-  });
+  for (let i = rows.length - 1; i >= 0; i--) { rows[i].lane = l; l = from[i][l]; }
   return rows;
+}
+
+function chalkClear() {
+  for (const r of chalkRoute()) {
+    if (r.fixed != null || r.z > CHALK_COMMIT || r.end < 0) continue;
+    const L = r.lane, x = laneX(L);
+    let cleared = false;
+    for (const o of r.objs) {
+      o.chalkLane = L;
+      if ((o.k === 'poo' || o.k === 'smear') && o.lane === L) { o.dead = true; cleared = true; }
+      else if (o.k === 'hang') { for (const b of o.bags) if (b.lane === L && !b.dead) { b.dead = true; cleared = true; } }
+      else if (o.k === 'swing') { o.dead = true; cleared = true; }
+      else if (o.k === 'dog' && o.lane === L) o.done = true; // the beaver thinks better of it
+    }
+    if (cleared) {
+      const [sx, sy] = P(x, 0.3, r.z);
+      burst(sx, sy, 18, CHALK_COLS, 0.7);
+      Sound.sfx.bag();
+    }
+  }
 }
 
 function drawChalkLine() {
@@ -1360,7 +1359,7 @@ function drawChalkLine() {
   pts.push([lastPt[0], lastPt[1] + 8]);
   // a fat pink line with a white core, easy to see at speed
   const u = P(0, 0, 2)[2];
-  for (const [col, w, a] of [['#ff7ac0', 0.16, 0.6], ['#ffffff', 0.07, 0.95]]) {
+  for (const [col, w, a] of [['#ff7ac0', 0.18, 0.6], ['#ffffff', 0.08, 0.95]]) {
     ctx.globalAlpha = a * fade;
     ctx.strokeStyle = col; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(2, u * w);
@@ -1371,23 +1370,6 @@ function drawChalkLine() {
     ctx.stroke();
   }
   ctx.setLineDash([]);
-  // JUMP where it's needed: chevrons and the word, at the take-off point
-  for (const r of rows) {
-    if (!r.hop) continue;
-    const x = laneX(r.lane), zt = r.z - r.lead;
-    if (zt >= 0.4) {
-      chalkStyle('#ffffff', P(x, 0, zt)[2], fade);
-      chalkPath([[-0.32, -0.15], [0, 0.2], [0.32, -0.15]], x, zt);
-      chalkPath([[-0.32, -0.45], [0, -0.1], [0.32, -0.45]], x, zt);
-      chalkStyle('#ff7ac0', 1, fade);
-      chalkText('JUMP!', x, zt - 1.1, 0.7, 1.5);
-    }
-    if (r.dropAt != null && r.dropAt > 0.4) {
-      chalkStyle('#7fd6ff', P(x, 0, r.dropAt)[2], fade);
-      chalkPath([[-0.32, 0.15], [0, -0.2], [0.32, 0.15]], x, r.dropAt);
-      chalkText('DROP!', x, r.dropAt + 0.9, 0.6, 1.4);
-    }
-  }
 }
 
 function drawBuildings() {
@@ -2374,7 +2356,7 @@ function drawOverlays() {
     ctx.fillStyle = '#ff7ac0'; rr(bx, by, Math.max(14, bw * k), 14, 7); ctx.fill();
     ctx.font = `20px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeStyle = '#3b2412';
-    ctx.strokeText('FOLLOW THE CHALK', cx, by - 15); ctx.fillStyle = '#fff'; ctx.fillText('FOLLOW THE CHALK', cx, by - 15);
+    ctx.strokeText('STAY ON THE LINE', cx, by - 15); ctx.fillStyle = '#fff'; ctx.fillText('STAY ON THE LINE', cx, by - 15);
   }
   // welly vignette
   if (G.p.welly > 0) {
@@ -2622,7 +2604,7 @@ const HELP = [
     ['Chanterelle', '+10. Run through them. Jumping misses them.', () => drawBag({ wz: 0 }), 1.5, 0],
     ['Golden wellies', '6 seconds of stomping through everything.', () => drawWelly({}), 0.85, -26],
     ['Bike', 'Floats at the top of a jump. Grab it to ride the road and skip ahead.', () => drawBikePickup({}), 0.75, -14],
-    ['The Chalk Lady', 'Grab her chalk: for 8 seconds she draws the safe line. Follow it. Jump at JUMP, swipe down at DROP.', () => drawChalkPickup({}), 0.75, -14],
+    ['The Chalk Lady', 'Grab her chalk: for 8 seconds she clears ye a path. Stay on her line and there\'s nae need to jump.', () => drawChalkPickup({}), 0.75, -14],
   ] },
 ];
 function drawSkidIcon() {
@@ -2782,5 +2764,5 @@ if (document.fonts && document.fonts.load) {
 requestAnimationFrame(frame);
 
 // tiny hook for automated smoke tests
-window.__ajd = { get state() { return G; }, get mode() { return mode; }, startGame, move, jump, drop, spawnRow, chalkRoute };
+window.__ajd = { get state() { return G; }, get mode() { return mode; }, startGame, move, jump, drop, spawnRow, chalkRoute, chalkClear };
 })();

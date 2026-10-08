@@ -35,7 +35,8 @@ with every obstacle and pickup drawn as it appears in the game.
 - 🥾 **Golden wellies** give 6 seconds of stomping through everything, hanging bags included.
 - **The Chalk Lady** has been round: some jobbies are circled in chalk (jump one for a bonus), and her
   messages ("PICK UP YER POO") are scrawled on the slabs. Grab her **chalk** and for 8 seconds she draws
-  the safe line ahead, marking where to **JUMP** and where to swipe down and **DROP**. Splat, and she
+  a line ahead and clears everything on it: stay on her line and you never need to jump. (She can't
+  shift a 4x4, so the line goes round those.) Splat, and she
   chalks your outline on the pavement.
 - It gets faster the longer you go. Sometimes it rains. This is Scotland.
 
