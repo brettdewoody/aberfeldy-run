@@ -10,7 +10,7 @@ import blobs from '../../lib/update-json.js';
 const { validate, insert, publicScores, makeRateLimiter } = leaderboard;
 const { open, checkReceipt, sameSite } = runs;
 const KEY = 'top10';
-const rateLimited = makeRateLimiter();
+const rateLimited = leaderboard.makeWindowLimiter(6, 10000);
 
 const json = (status, body) => new Response(JSON.stringify(body), {
   status,

@@ -446,7 +446,7 @@ const Board = (() => {
         body: JSON.stringify({ initials, receipt: fin.receipt }),
       });
     } catch (e) { mode = 'local'; return local.add(initials, score); }
-    if ([400, 403, 409, 429].includes(r.status)) {
+    if (r.status !== 404 && !r.ok) {
       const j = await r.json().catch(() => ({}));
       throw new BoardError(j.error || 'Could not save that score.');
     }
@@ -463,16 +463,22 @@ const Board = (() => {
 
 // Run tickets (see lib/runs.js): the server signs the start of each run and checks the finish,
 // so a score can't be typed in or replayed. Without a server everything still works locally.
+// Only a missing server (network error, or no API at all on a static host) means "offline";
+// if the server is there but says no, the player is told why instead of silently saving locally.
 const Runs = {
   async start() {
     try {
       const r = await fetch('api/run/start', { method: 'POST' });
-      return r.ok ? (await r.json()).ticket || null : null;
-    } catch (e) { return null; }
+      if (r.status === 404) return { offline: true };
+      const j = await r.json().catch(() => ({}));
+      return r.ok && j.ticket ? { ticket: j.ticket } : { error: j.error || `Server said ${r.status}` };
+    } catch (e) { return { offline: true }; }
   },
-  async finish(ticketP, dist, score) {
-    const ticket = await ticketP;
-    if (!ticket) return { offline: true };
+  async finish(startP, dist, score) {
+    const start = await startP;
+    if (start.offline) return { offline: true };
+    if (!start.ticket) return { error: `Couldn't check this run with the server (${start.error}). Try another run.` };
+    const ticket = start.ticket;
     try {
       const r = await fetch('api/run/finish', {
         method: 'POST',
@@ -480,6 +486,7 @@ const Runs = {
         body: JSON.stringify({ ticket, dist, score }),
       });
       const j = await r.json().catch(() => ({}));
+      if (r.status === 404) return { offline: true };
       return r.ok && j.receipt ? { receipt: j.receipt } : { error: j.error || 'Could not check that run.' };
     } catch (e) { return { offline: true }; }
   },

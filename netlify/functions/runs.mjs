@@ -11,7 +11,7 @@ import blobs from '../../lib/update-json.js';
 const { open, newTicket, checkFinish, newReceipt, sameSite } = runs;
 const { applyEvent, dayKey } = stats;
 const { updateJSON, claimOnce, envVar } = blobs;
-const startLimit = leaderboard.makeRateLimiter(1000); // in memory only; IPs are never stored
+const startLimit = leaderboard.makeWindowLimiter(20, 10000); // in memory only; IPs are never stored
 
 const json = (status, body) => new Response(JSON.stringify(body), {
   status,

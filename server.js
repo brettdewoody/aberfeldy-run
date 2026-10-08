@@ -56,7 +56,7 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-const rateLimited = makeRateLimiter();
+const rateLimited = require('./lib/leaderboard').makeWindowLimiter(6, 10000);
 
 function readJson(req, res, max, cb) {
   let body = '';
@@ -68,7 +68,7 @@ function readJson(req, res, max, cb) {
   });
 }
 
-const startLimit = makeRateLimiter(1000);
+const startLimit = require('./lib/leaderboard').makeWindowLimiter(20, 10000);
 function bumpStats(ev) {
   const today = stats.dayKey();
   statData.days[today] = stats.applyEvent(statData.days[today], ev);
@@ -157,7 +157,7 @@ function persistStats() {
   fs.writeFileSync(`${STATS_FILE}.tmp`, JSON.stringify(statData));
   fs.renameSync(`${STATS_FILE}.tmp`, STATS_FILE);
 }
-const visitLimit = makeRateLimiter(5000);
+const visitLimit = require('./lib/leaderboard').makeWindowLimiter(10, 10000);
 function handleStats(req, res, p) {
   if (p.endsWith('/api/event')) {
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
