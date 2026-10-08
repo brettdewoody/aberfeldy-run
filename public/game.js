@@ -2410,14 +2410,19 @@ function drawHelpIcons() {
   }
   ctx = main;
 }
-function openHelp(thenPlay) {
+let helpFrom = 'title';
+function openHelp(thenPlay, from = 'title', toAbout = false) {
   buildHelp();
+  helpFrom = from;
   $('helpBackBtn').classList.toggle('hidden', !!thenPlay);
   $('help').scrollTop = 0;
   show('help');
+  if (toAbout) $('about').scrollIntoView({ block: 'start' });
 }
 $('helpBtn').addEventListener('click', () => openHelp(false));
-$('helpBackBtn').addEventListener('click', () => show('title'));
+$('overHelpBtn').addEventListener('click', () => openHelp(false, 'over'));
+$('creditBtn').addEventListener('click', () => openHelp(false, 'title', true));
+$('helpBackBtn').addEventListener('click', () => show(helpFrom));
 $('helpPlayBtn').addEventListener('click', () => { store.set('ajd_seen_help', '1'); startGame(); });
 
 // First visit: show How to Play once before the first run.

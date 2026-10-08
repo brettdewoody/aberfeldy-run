@@ -5,6 +5,9 @@ Run along a street of Aberfeldy shopfronts in your kilt and tammy, past Wade's B
 Memorial, the Birks o' Aberfeldy, the distillery, Castle Menzies and some unimpressed Highland coos,
 with Schiehallion behind you the whole way.
 
+Made in Aberfeldy by Brett DeWoody, and built with AI (Claude, by Anthropic) in about an hour: Brett described the
+game and played each version on a phone, and Claude wrote all of the code.
+
 ## How to play
 
 The game has a **How to play** page (❓ on the title screen, and shown once before your first run)
@@ -138,5 +141,5 @@ It has no dependencies, so you can also run it on any small server if you'd rath
 - Everything is drawn on canvas in code and all audio is synthesised with WebAudio, so there are no
   image or sound files. That includes the bagpipe drone and chanter tune.
 - Initials are limited to A–Z and pass through a small rude-word filter. The server also rate-limits submissions.
-- Scores are submitted by the client, so a determined person could fake one. That's fine for a
-  village joke, but don't put prize money on it.
+- The cheat protection above stops casual faking, but a determined person could still script a fake run.
+  That's fine for a village joke, but don't put prize money on it.
