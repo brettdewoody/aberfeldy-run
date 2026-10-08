@@ -2284,11 +2284,8 @@ function collectSprites() {
   const D = G.dist;
   for (const b of G.blds) {
     const z = b.z0 - D + 0.8;
-    if (b.sign && z < b.z1 - D && z > 1.5) {
-      add(z, () => sprite(WALL_X, 3.0, z, 2.2, () => {
-        ctx.globalAlpha *= clamp((z - 1.5) / 3.5, 0, 1);
-        drawShopSign(b.shop);
-      }));
+    if (b.sign && z < b.z1 - D) {
+      add(z, () => sprite(WALL_X, 3.0, z, 2.2, () => drawShopSign(b.shop)));
     }
   }
   for (const s of G.scen) {
