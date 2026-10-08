@@ -51,6 +51,7 @@ Netlify hosts the game and the shared Top 10 together. Scores are stored in
 3. Leave every setting as it is (`netlify.toml` already has them) and click **Deploy**.
 
 You get a URL like `https://aberfeldy-jobbie-dash.netlify.app` (you can rename it under Site settings).
+The live game is at **https://jobbie.run** (custom domain set in Netlify).
 Every push to `main` redeploys automatically. The leaderboard screen should say
 **"Global leaderboard · all of Aberfeldy"**.
 
@@ -88,7 +89,7 @@ score. Nothing identifies a player: no id, name, IP address or cookie is sent or
 is approximate: a visit counts as new if that browser hasn't yet got past the How to Play page (a flag
 the game already keeps for showing that page once). Events go to `/api/event` and are stored in Netlify Blobs.
 
-To see them, open **`/stats.html?key=YOUR_KEY`**, where the key is the `STATS_KEY` environment variable
+To see them, open **`https://jobbie.run/stats.html?key=YOUR_KEY`**, where the key is the `STATS_KEY` environment variable
 set in Netlify (Site configuration → Environment variables). The page remembers the key on that device.
 Self-hosting with `server.js`? Set `STATS_KEY` when starting it; stats are saved to `data/stats.json`.
 

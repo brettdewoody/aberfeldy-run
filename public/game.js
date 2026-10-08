@@ -86,7 +86,7 @@ const DEATH = {
   dam: ['Ran into a beaver dam. On a pavement.', 'The beaver built that in four seconds.'],
   suv: ['Ran into a second-home 4x4.', "Splatted on a Range Rover. They're back in August."],
 };
-const QUIPS = ['Och, that\'s mingin\'.', 'Help ma boab!', 'Pure honkin\'.', 'Yer maw\'s gonnae kill ye.', 'Every. Single. Time.', 'The Council will hear about this.', 'Smells like a Tuesday.'];
+const QUIPS = ['Och, that\'s mingin\'.', 'Help ma boab!', 'Pure honkin\'.', 'Yer maw\'s gonnae kill ye.', 'Every. Single. Time.', 'The Council will hear about this.', 'Smells like a {day}.'];
 
 // Landmarks on the left verge. Wade's Bridge always comes first.
 const LANDMARK_X = {
@@ -810,7 +810,7 @@ function update(dt) {
       }
     }
     p.jumpBuf = Math.max(0, p.jumpBuf - dt);
-    p.phase += dt * (6 + G.speed * 0.45);
+    p.phase += dt * (8 + G.speed * 0.75); // stride rate tracks speed: ~2.5 strides/s at the start, ~5 at top speed
     if (p.welly > 0) {
       p.welly -= dt;
       if (p.welly <= 0) floater('WELLIES AFF', 'Back tae normal shoes', { color: '#fff', size: 34 });
@@ -2253,7 +2253,8 @@ function gameOver() {
   const isBest = G.score > best;
   if (isBest) { best = G.score; store.set('ajd_best', String(best)); }
   $('overTitle').textContent = isBest && G.score > 0 ? 'NEW BEST!' : 'SPLAT!';
-  $('overMsg').textContent = `${pick(DEATH[G.killer] || DEATH.small)} ${pick(QUIPS)}`;
+  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long' });
+  $('overMsg').textContent = `${pick(DEATH[G.killer] || DEATH.small)} ${pick(QUIPS).replace('{day}', today)}`;
   $('oScore').textContent = G.score;
   $('oDist').textContent = `${Math.floor(G.dist)}m`;
   $('oBags').textContent = G.bags;
@@ -2427,10 +2428,10 @@ $('playBtn').addEventListener('click', () => {
 $('againBtn').addEventListener('click', startGame);
 
 // Share the run: the phone's share sheet where there is one, otherwise copy to the clipboard.
-const SHARE_URL = 'https://aberfeldy-jobbie-dash.netlify.app/';
+const SHARE_URL = 'https://jobbie.run/';
 function shareText() {
   const n = (v) => Number(v).toLocaleString('en-GB');
-  return `I ran ${n(Math.floor(G.dist))}m and dodged ${n(G.dodged)} jobbies on Aberfeldy's pavements. Score: ${n(G.score)}. Beat that 💩`;
+  return `I ran ${n(Math.floor(G.dist))}m and dodged ${n(G.dodged)} ${G.dodged === 1 ? 'jobbie' : 'jobbies'} on Aberfeldy's pavements. Score: ${n(G.score)}. Beat that 💩`;
 }
 async function shareScore() {
   const btn = $('shareBtn');
