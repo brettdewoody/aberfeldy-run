@@ -78,7 +78,16 @@ const SECOND_HOMES = [
   { name: 'SECOND HOME', sub: 'Empty till August', front: '#cfc9bb', accent: '#7d7d7d', sign: '#f4f1ea', text: '#555555', door: '#33393f', empty: true },
   { name: 'HOLIDAY LET', sub: 'Key safe · No locals', front: '#bfc7c2', accent: '#3b6e5a', sign: '#3b6e5a', text: '#ffffff', door: '#2c3a34', empty: true },
 ];
-const WALL_COLORS = ['#b9b2a3', '#9e978a', '#d8d2c4', '#c7b9a0', '#8f8a80', '#e9e4d8', '#a9a196', '#cfc4ae'];
+// Aberfeldy's high street: grey rubble stone with sandstone dressings, red sandstone, the odd
+// harled (rendered) building; slate roofs, chimney stacks, painted timber dormers and gables.
+const STONES = [
+  { k: 'rubble', wall: '#7c7a74', mortar: '#9a978e', dress: '#c49a68', w: 5 },
+  { k: 'rubble', wall: '#6d6e6c', mortar: '#8d8d88', dress: '#b98d5c', w: 3 },
+  { k: 'red', wall: '#9a4b35', mortar: '#b56a50', dress: '#b8654a', w: 3 },
+  { k: 'buff', wall: '#a88a64', mortar: '#c2a47c', dress: '#cdb08a', w: 2 },
+  { k: 'harl', wall: '#e4ddcc', mortar: null, dress: '#8e8a82', w: 1.5 },
+];
+const TRIM = ['#b3261e', '#f2efe6', '#1e3a5f', '#2f5d3a', '#f2efe6'];
 const STREETS = ['DUNKELD ST', 'BANK ST', 'KENMORE ST', 'CHAPEL ST', 'THE SQUARE', 'TAYBRIDGE RD', 'CRIEFF RD', 'MILL ST'];
 
 const EXCL = {
@@ -436,7 +445,8 @@ const Board = (() => {
       const entry = { initials, score, t: Date.now() };
       const all = local.get(); all.push(entry);
       all.sort((a, b) => b.score - a.score || a.t - b.t);
-      const top = all.slice(0, 10);
+      const seen = new Set(); // each set of initials once, with their best
+      const top = all.filter((e) => !seen.has(e.initials) && seen.add(e.initials)).slice(0, 10);
       store.set(KEY, JSON.stringify(top));
       return { scores: top, rank: top.indexOf(entry) };
     },
@@ -542,12 +552,20 @@ function fillWorld() {
   const horizon = G.dist + FAR_Z + 4;
   while (G.nextBld < horizon) {
     const len = rand(3.8, 6.5);
-    const wall = pick(WALL_COLORS);
+    let r = Math.random() * STONES.reduce((n, st) => n + st.w, 0), stone = STONES[0];
+    for (const st of STONES) { if ((r -= st.w) < 0) { stone = st; break; } }
+    const h = rand(3.6, 5.6);
     const shop = Math.random() < 0.25 ? pick(SECOND_HOMES) : pick(SHOPS);
     // Hanging signs block the view a bit (good), but one on every shop was too many: about a third, never two in a row.
     const prev = G.blds[G.blds.length - 1];
     const sign = !(prev && prev.sign) && Math.random() < 0.5;
-    G.blds.push({ z0: G.nextBld, z1: G.nextBld + len, h: rand(3.4, 6.4), wall, side: mix(wall, '#000000', 0.25), shop, sign });
+    G.blds.push({
+      z0: G.nextBld, z1: G.nextBld + len, h, stone, shop, sign,
+      side: mix(stone.wall, '#000000', 0.28),
+      gable: Math.random() < 0.3, dormers: Math.random() < 0.45, trim: pick(TRIM),
+      chim: [rand(0.3, 0.9), Math.random() < 0.6 ? rand(len - 1.2, len - 0.6) : null],
+      courses: stoneCourses(stone, h, len),
+    });
     G.nextBld += len + (Math.random() < 0.25 ? rand(0.8, 2.2) : 0);
   }
   while (G.nextLM < horizon) {
@@ -1388,34 +1406,113 @@ function drawChalkLine() {
   ctx.setLineDash([]);
 }
 
+// Stone courses for a wall above the shopfront, made once per building: [y, [z joints...]]
+function stoneCourses(stone, h, len) {
+  if (!stone.mortar) return [];
+  const out = [];
+  for (let y = 2.35; y < h - 0.15; y += rand(0.22, 0.34)) {
+    const joints = [];
+    for (let z = rand(0, 0.5); z < len; z += stone.k === 'rubble' ? rand(0.3, 0.75) : rand(0.6, 0.9)) joints.push(z);
+    out.push([y, joints]);
+  }
+  return out;
+}
+
 function drawBuildings() {
-  const X = WALL_X, X2 = WALL_X + 4;
+  const X = WALL_X, X2 = WALL_X + 4, RX = X + 2; // ridge runs along the middle of the building
   for (let i = G.blds.length - 1; i >= 0; i--) {
     const b = G.blds[i];
     const z0 = b.z0 - G.dist, z1 = b.z1 - G.dist;
     if (z1 < NEAR_Z || z0 > FAR_Z) continue;
-    const h = b.h, s = b.shop;
-    if (z0 > NEAR_Z) quadFront(X, X2, 0, h, z0, b.side);
-    if (h < camH) quadTop(X, X2, h, z0, z1, '#4b5059');
-    quadWall(X, 0, h, z0, z1, b.wall);
-    quadWall(X, h - 0.2, h, z0, z1, 'rgba(0,0,0,0.22)');
+    const h = b.h, s = b.shop, st = b.stone, rh = h + 1.5; // ridge height
+    // gable end, if this building's end shows
+    if (z0 > NEAR_Z) {
+      poly([P(X, 0, z0), P(X2, 0, z0), P(X2, h, z0), P(RX, rh, z0), P(X, h, z0)], b.side);
+    }
+    // slate roof, chimney stacks with pots
+    const [r0, r1] = clipZ(z0, z1);
+    if (r1 > r0) poly([P(X, h, r0), P(X, h, r1), P(RX, rh, r1), P(RX, rh, r0)], '#454b54');
+    for (const c of b.chim) {
+      if (c == null) continue;
+      const cz = z0 + c;
+      if (cz < NEAR_Z || cz > FAR_Z) continue;
+      quadWall(RX - 0.2, rh - 0.4, rh + 0.75, cz, cz + 0.55, st.wall);
+      quadWall(RX - 0.2, rh + 0.62, rh + 0.75, cz - 0.04, cz + 0.59, st.dress);
+      for (const pz of [0.1, 0.32]) quadWall(RX - 0.2, rh + 0.75, rh + 0.98, cz + pz, cz + pz + 0.12, '#b0603e');
+    }
+    // the wall
+    quadWall(X, 0, h, z0, z1, st.wall);
+    if (st.mortar && z0 < 34) {
+      ctx.globalAlpha = 0.55;
+      for (const [y, joints] of b.courses) {
+        quadWall(X, y, y + 0.025, z0 + 0.1, z1 - 0.1, st.mortar);
+        if (z0 < 18) for (const jz of joints) quadWall(X, y - 0.24, y, z0 + jz, z0 + jz + 0.025, st.mortar);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // dressed sandstone quoins at the corners
+    for (let y = 2.2, n = 0; y < h - 0.1; y += 0.34, n++) {
+      const w = n % 2 ? 0.22 : 0.42;
+      quadWall(X, y, Math.min(y + 0.3, h), z0, z0 + w, st.dress);
+      quadWall(X, y, Math.min(y + 0.3, h), z1 - w, z1, st.dress);
+    }
+    quadWall(X, h - 0.16, h, z0, z1, mix(st.dress, '#000000', 0.15)); // eaves course
+    // a front gable, red sandstone style with painted bargeboards
+    const mid = (z0 + z1) / 2;
+    if (b.gable && z1 - z0 > 3.6 && mid - 1.3 > NEAR_Z) {
+      const ga = mid - 1.3, gb = mid + 1.3;
+      poly([P(X, h - 0.05, ga), P(X, h - 0.05, gb), P(X, h + 1.45, mid)], st.wall);
+      ctx.strokeStyle = b.trim; ctx.lineWidth = Math.max(1.5, P(X, 0, Math.max(mid, 0.5))[2] * 0.06); ctx.lineJoin = 'round';
+      ctx.beginPath(); const g1 = P(X, h - 0.05, ga), g2 = P(X, h + 1.5, mid), g3 = P(X, h - 0.05, gb);
+      ctx.moveTo(g1[0], g1[1]); ctx.lineTo(g2[0], g2[1]); ctx.lineTo(g3[0], g3[1]); ctx.stroke();
+      quadWall(X, h + 0.1, h + 0.85, mid - 0.3, mid + 0.3, st.dress);
+      sash(X, h + 0.15, h + 0.8, mid - 0.24, mid + 0.24, s.empty);
+    }
+    // painted timber shopfront: pilasters, fascia, cornice, stallriser, big window, door
     const a = z0 + 0.15, e = z1 - 0.15;
+    const dark = mix(s.front, '#000000', 0.35);
     quadWall(X, 0, 2.1, a, e, s.front);
-    quadWall(X, 1.72, 2.05, a, e, s.accent);
+    quadWall(X, 2.1, 2.22, a - 0.06, e + 0.06, dark);                  // cornice
+    quadWall(X, 1.72, 2.05, a + 0.12, e - 0.12, s.accent);             // fascia
     quadWall(X, 0.45, 1.55, a + 0.25, e - 1.25, s.empty ? '#141a21' : '#2c3e50');
     if (s.empty) { // closed curtains
       quadWall(X, 0.5, 1.5, a + 0.3, a + 0.3 + (e - a - 1.6) * 0.47, '#8c7a6b');
       quadWall(X, 0.5, 1.5, e - 1.3 - (e - a - 1.6) * 0.47, e - 1.3, '#8c7a6b');
     }
     quadWall(X, 1.05, 1.5, a + 0.45, a + 1.1, 'rgba(255,255,255,0.18)');
+    for (let mz = a + 0.25 + (e - a - 1.5) / 3; mz < e - 1.3; mz += (e - a - 1.5) / 3) quadWall(X, 0.45, 1.55, mz - 0.03, mz + 0.03, dark); // mullions
+    quadWall(X, 0, 0.45, a + 0.25, e - 1.25, dark);                    // stallriser
     quadWall(X, 0, 1.62, e - 1.05, e - 0.35, s.door);
-    for (let y = 2.6; y + 1.0 < h - 0.25; y += 1.4) {
-      for (let wz = a + 0.45; wz + 0.65 < e; wz += 1.3) {
-        quadWall(X, y, y + 0.95, wz, wz + 0.65, '#ece7da');
-        quadWall(X, y + 0.07, y + 0.88, wz + 0.07, wz + 0.58, s.empty ? '#7a6a5c' : '#3a4d63');
+    for (const pz of [a, e - 1.2, e - 0.12]) quadWall(X, 0, 1.72, pz, pz + 0.12, dark); // pilasters
+    // upper floors: white sash windows in dressed stone surrounds
+    for (let y = 2.55; y + 1.05 < h - 0.25; y += 1.45) {
+      for (let wz = a + 0.6; wz + 0.6 < e - 0.3; wz += 1.25) {
+        if (st.k !== 'harl') quadWall(X, y - 0.1, y + 1.12, wz - 0.1, wz + 0.7, st.dress);
+        sash(X, y, y + 1.02, wz, wz + 0.6, s.empty);
+      }
+    }
+    // dormers on the roof, painted timber gables
+    if (b.dormers && !b.gable) {
+      for (let dz = z0 + 0.9; dz + 0.9 < z1 - 0.4; dz += 2.3) {
+        if (dz < NEAR_Z + 0.2 || dz > FAR_Z) continue;
+        const dx = X + 0.55, dy = h + 0.44;
+        poly([P(dx, dy, dz), P(dx, dy, dz + 0.9), P(dx, dy + 0.85, dz + 0.9), P(dx, dy + 1.25, dz + 0.45), P(dx, dy + 0.85, dz)], st.wall);
+        sash(dx, dy + 0.1, dy + 0.8, dz + 0.17, dz + 0.73, s.empty);
+        ctx.strokeStyle = b.trim; ctx.lineWidth = Math.max(1.2, P(dx, 0, Math.max(dz, 0.5))[2] * 0.05); ctx.lineJoin = 'round';
+        const q1 = P(dx, dy + 0.85, dz - 0.05), q2 = P(dx, dy + 1.3, dz + 0.45), q3 = P(dx, dy + 0.85, dz + 0.95);
+        ctx.beginPath(); ctx.moveTo(q1[0], q1[1]); ctx.lineTo(q2[0], q2[1]); ctx.lineTo(q3[0], q3[1]); ctx.stroke();
       }
     }
   }
+}
+// A white-painted sash window with glazing bars.
+function sash(x, y0, y1, z0, z1, empty) {
+  quadWall(x, y0, y1, z0, z1, '#ece7da');
+  const gl = empty ? '#7a6a5c' : '#3a4d63', ym = (y0 + y1) / 2, zm = (z0 + z1) / 2;
+  quadWall(x, y0 + 0.06, ym - 0.03, z0 + 0.06, zm - 0.025, gl);
+  quadWall(x, y0 + 0.06, ym - 0.03, zm + 0.025, z1 - 0.06, gl);
+  quadWall(x, ym + 0.03, y1 - 0.06, z0 + 0.06, zm - 0.025, gl);
+  quadWall(x, ym + 0.03, y1 - 0.06, zm + 0.025, z1 - 0.06, gl);
 }
 
 // ---------------------------------------------------------------- render: sprites
@@ -2285,7 +2382,8 @@ function collectSprites() {
   for (const b of G.blds) {
     const z = b.z0 - D + 0.8;
     if (b.sign && z < b.z1 - D) {
-      add(z, () => sprite(WALL_X, 3.0, z, 2.2, () => drawShopSign(b.shop)));
+      // solid until it's nearly overhead, then a quick fade so it never hides the runner
+      add(z, () => sprite(WALL_X, 3.0, z, 2.2, () => { ctx.globalAlpha *= clamp((z - 0.4) / 1.4, 0, 1); drawShopSign(b.shop); }));
     }
   }
   for (const s of G.scen) {
@@ -2556,7 +2654,8 @@ $('saveForm').addEventListener('submit', async (e) => {
     const res = await Board.submit(ini, G.score, G.finishP);
     saved = true;
     store.set('ajd_initials', ini);
-    renderBoard(res.scores, res.rank);
+    // not a new best for these initials? point at the score of theirs that's already up there
+    renderBoard(res.scores, res.rank >= 0 ? res.rank : res.scores.findIndex((s) => s.initials === ini));
     show('board');
   } catch (err) {
     $('saveErr').textContent = err instanceof BoardError ? err.message : 'Could not save. Try again.';
@@ -2768,7 +2867,14 @@ function frame(now) {
 
 resize();
 goTitle();
-track('visit', { first: !store.get('ajd_seen_help') });
+{
+  // "Players today" on the stats page: the first visit of the (UTC) day from this device says so.
+  // Only the date is kept on the device; nothing that identifies anyone is sent.
+  const day = new Date().toISOString().slice(0, 10);
+  const today = store.get('ajd_last_day') !== day;
+  store.set('ajd_last_day', day);
+  track('visit', { first: !store.get('ajd_seen_help'), today });
+}
 if (document.fonts && document.fonts.load) {
   document.fonts.load(`20px "Luckiest Guy"`).catch(() => {});
   document.fonts.load(`20px "Gochi Hand"`).catch(() => {});

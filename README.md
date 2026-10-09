@@ -47,7 +47,8 @@ the golf club, a piper and some Highland coos. About one house in four on the hi
 curtains-shut second home or holiday let. A big brown tourist sign at the roadside
 names each one as you approach.
 
-When you're done, enter 3 initials, or tap **📣 Share** to brag via your phone's share sheet. The leaderboard shows the **Top 10** only.
+When you're done, enter 3 initials, or tap **📣 Share** to brag via your phone's share sheet. The leaderboard shows the **Top 10** only,
+with each set of initials listed once at their best score.
 
 ## Deploying (recommended: Netlify, free)
 
@@ -102,10 +103,12 @@ use Deploys → Trigger deploy (or push any commit).
 
 ## Play statistics
 
-The game keeps plain daily counts: visits, new players, runs started, runs finished, distance and best
+The game keeps plain daily counts: visits, players, new players, runs started, runs finished, distance and best
 score. Nothing identifies a player: no id, name, IP address or cookie is sent or stored. "New players"
 is approximate: a visit counts as new if that browser hasn't yet got past the How to Play page (a flag
-the game already keeps for showing that page once). Events go to `/api/event` and are stored in Netlify Blobs.
+the game already keeps for showing that page once). "Players" counts devices that played that day:
+the game keeps the date of its last visit on the device and flags the first visit of each (UTC) day.
+Events go to `/api/event` and are stored in Netlify Blobs.
 
 To see them, open **`https://jobbie.run/stats.html?key=YOUR_KEY`**, where the key is the `STATS_KEY` environment variable
 set in Netlify (Site configuration → Environment variables). The page remembers the key on that device.

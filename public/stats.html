@@ -15,7 +15,7 @@
     :root {
       --bg: #241508; --surface: #2f1d0d; --line: rgba(255, 246, 227, .12);
       --ink: #fff6e3; --ink-2: rgba(255, 246, 227, .72); --ink-3: rgba(255, 246, 227, .5);
-      --bar: #b87a12; --bar-hover: #e0a020; --gold: #ffc61a;
+      --bar: #b87a12; --bar-hover: #e0a020; --gold: #ffc61a; --players: #3f9fd0;
       --font: "Luckiest Guy", Impact, "Arial Black", sans-serif;
     }
     * { box-sizing: border-box; }
@@ -38,6 +38,12 @@
     .bar { fill: var(--bar); pointer-events: none; } /* taps go to the full-height hit area behind it */
     .hit { fill: transparent; cursor: pointer; }
     .hit:hover + .bar, .bar.on { fill: var(--bar-hover); }
+    .pline { fill: none; stroke: var(--players); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; pointer-events: none; }
+    .pdot { fill: var(--players); stroke: var(--surface); stroke-width: 2; pointer-events: none; }
+    .legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); margin: 2px 0 8px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--bar); }
+    .legend i.p { height: 4px; border-radius: 2px; background: var(--players); }
     .tip { position: absolute; pointer-events: none; background: #120a03; border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -100%); display: none; }
     .tip b { display: block; font-size: 13px; }
     details { margin-top: 6px; }
@@ -95,21 +101,24 @@
     for (let i = n - 1; i >= 0; i--) {
       const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i));
       const date = d.toISOString().slice(0, 10);
-      out.push(byDate[date] || { date, newPlayers: 0, visits: 0, runs: 0, finishes: 0, dist: 0, best: 0 });
+      out.push(byDate[date] || { date, none: true, newPlayers: 0, players: 0, visits: 0, runs: 0, finishes: 0, dist: 0, best: 0 });
     }
     return out;
   }
 
+  // Daily players were first counted on 9 Oct 2026: older days with visits have no figure.
+  const playersOf = (d) => (d.none || (!d.players && d.visits) ? null : d.players || 0);
+
   function render({ totals, days }) {
     const today = new Date().toISOString().slice(0, 10);
-    const t = days.find((d) => d.date === today) || { newPlayers: 0, runs: 0, visits: 0 };
+    const t = days.find((d) => d.date === today) || { newPlayers: 0, players: 0, runs: 0, visits: 0 };
     const first = days.length ? days[0].date : today;
     $('sub').textContent = `Since ${new Date(first + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} · days in UTC · counts only, nothing identifies a player`;
 
     const tiles = [
       ['Players', fmt(totals.players), 'first-time visitors, approx.'],
       ['Runs', fmt(totals.runs), 'started, all time'],
-      ['Today', fmt(t.runs), `runs · ${fmt(t.visits)} visit${t.visits === 1 ? '' : 's'} · ${fmt(t.newPlayers)} new`],
+      ['Today', fmt(t.runs), `runs · ${fmt(t.players || 0)} player${t.players === 1 ? '' : 's'} · ${fmt(t.newPlayers)} new`],
       ['Runs per player', totals.players ? (totals.runs / totals.players).toFixed(1) : '0', 'average'],
       ['Distance run', `${fmt(Math.round(totals.dist / 1000))} km`, 'all runs added up'],
       ['Best score', fmt(totals.best), 'single run'],
@@ -118,12 +127,13 @@
     $('out').innerHTML = `
       <div class="tiles">${tiles.map(([l, v, n]) => `<div class="tile"><div class="label">${l}</div><div class="value">${v}</div><div class="note">${n}</div></div>`).join('')}</div>
       <div class="card">
-        <h2>Runs per day</h2>
-        <div class="desc">Last 30 days. Hover or tap a bar for the day's visits and new players.</div>
+        <h2>Runs and players per day</h2>
+        <div class="desc">Last 30 days. Players = phones and computers that played that day. Hover or tap a day for details.</div>
+        <div class="legend"><span><i></i>Runs</span><span><i class="p"></i>Players</span></div>
         <div class="chart" id="chart"></div>
         <details><summary>Show as a table</summary>
-          <table><thead><tr><th>Day</th><th>New players</th><th>Visits</th><th>Runs</th><th>Finished</th><th>Best</th></tr></thead>
-          <tbody>${series.slice().reverse().map((d) => `<tr><td>${esc(d.date)}</td><td>${fmt(d.newPlayers)}</td><td>${fmt(d.visits)}</td><td>${fmt(d.runs)}</td><td>${fmt(d.finishes)}</td><td>${fmt(d.best)}</td></tr>`).join('')}</tbody></table>
+          <table><thead><tr><th>Day</th><th>Players</th><th>New</th><th>Visits</th><th>Runs</th><th>Finished</th><th>Best</th></tr></thead>
+          <tbody>${series.slice().reverse().map((d) => `<tr><td>${esc(d.date)}</td><td>${playersOf(d) == null ? '–' : fmt(d.players)}</td><td>${fmt(d.newPlayers)}</td><td>${fmt(d.visits)}</td><td>${fmt(d.runs)}</td><td>${fmt(d.finishes)}</td><td>${fmt(d.best)}</td></tr>`).join('')}</tbody></table>
         </details>
       </div>`;
     lastSeries = series;
@@ -141,11 +151,11 @@
     const el = $('chart');
     // drawn at the real on-screen width so labels stay a readable size on phones
     const W = Math.max(300, Math.round(el.clientWidth)), H = 230, L = 34, R = 6, T = 10, B = 26;
-    const max = niceMax(Math.max(...series.map((d) => d.runs), 1));
+    const max = niceMax(Math.max(...series.map((d) => Math.max(d.runs, playersOf(d) || 0)), 1));
     const n = series.length, slot = (W - L - R) / n, gap = 2, bw = Math.max(2, slot - gap);
     const y = (v) => T + (H - T - B) * (1 - v / max);
     const ticks = [0, max / 2, max];
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Runs per day for the last 30 days">`;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Runs and players per day for the last 30 days">`;
     svg += `<g class="grid">${ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`).join('')}</g>`;
     svg += `<g class="axis">${ticks.map((v) => `<text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${fmt(v)}</text>`).join('')}`;
     series.forEach((d, i) => {
@@ -164,7 +174,18 @@
         ? `<path class="bar" data-i="${i}" d="M${x},${y(0)} V${top + r} Q${x},${top} ${x + r},${top} H${x + bw - r} Q${x + bw},${top} ${x + bw},${top + r} V${y(0)} Z"/>`
         : `<path class="bar" data-i="${i}" d=""/>`;
     });
-    svg += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="rgba(255,246,227,.35)"/></svg><div class="tip" id="tip"></div>`;
+    svg += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="rgba(255,246,227,.35)"/>`;
+    // players: a line over the bars, broken where there's no figure, with a dot on each day
+    const cx = (i) => L + i * slot + slot / 2;
+    let path = '', open = false;
+    series.forEach((d, i) => {
+      const v = playersOf(d);
+      if (v == null) { open = false; return; }
+      path += `${open ? 'L' : 'M'}${cx(i)},${y(v)} `; open = true;
+    });
+    if (path) svg += `<path class="pline" d="${path}"/>`;
+    series.forEach((d, i) => { const v = playersOf(d); if (v != null && v > 0) svg += `<circle class="pdot" cx="${cx(i)}" cy="${y(v)}" r="4"/>`; });
+    svg += `</svg><div class="tip" id="tip"></div>`;
     el.innerHTML = svg;
 
     const tip = $('tip'), bars = el.querySelectorAll('.bar');
@@ -172,9 +193,9 @@
       const d = series[i];
       bars.forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
       const box = el.querySelector('svg').getBoundingClientRect(), k = box.width / W;
-      tip.innerHTML = `<b>${new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</b>${fmt(d.runs)} run${d.runs === 1 ? '' : 's'} · ${fmt(d.visits)} visit${d.visits === 1 ? '' : 's'} · ${fmt(d.newPlayers)} new`;
+      tip.innerHTML = `<b>${new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</b>${fmt(d.runs)} run${d.runs === 1 ? '' : 's'} · ${playersOf(d) == null ? 'players not counted yet' : `${fmt(d.players)} player${d.players === 1 ? '' : 's'}`} · ${fmt(d.newPlayers)} new`;
       tip.style.left = `${(L + i * slot + slot / 2) * k}px`;
-      tip.style.top = `${(y(d.runs) - 6) * k}px`;
+      tip.style.top = `${(y(Math.max(d.runs, playersOf(d) || 0)) - 8) * k}px`;
       tip.style.display = 'block';
     };
     const hide = () => { tip.style.display = 'none'; bars.forEach((b) => b.classList.remove('on')); };
