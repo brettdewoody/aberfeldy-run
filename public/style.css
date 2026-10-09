@@ -200,7 +200,22 @@ h2 {
 
 /* How to play */
 .screen-top { align-items: flex-start; }
-.help-panel { padding-bottom: 8px; }
+.help-panel { padding-bottom: 0; }
+#help.screen { padding-bottom: 0; } /* the pinned buttons sit right on the bottom edge */
+/* RUN! and Back stay on screen while the list scrolls underneath */
+.help-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 -16px;
+  padding: 18px 16px calc(env(safe-area-inset-bottom, 0px) + 14px);
+  background: linear-gradient(rgba(36, 21, 8, 0), rgba(36, 21, 8, .92) 30%);
+}
+.help-actions .big-btn { flex: 1; margin: 0 0 7px; font-size: 34px; }
+.help-actions .small-btn { margin-bottom: 4px; }
 .help-title { font-size: 46px; color: var(--gold); }
 .help-controls {
   display: grid;
