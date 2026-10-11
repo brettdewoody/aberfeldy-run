@@ -99,6 +99,7 @@
 
   // ---- Top 10, owner's view: each run's distance and length, so an edited score stands out
   const SUSPECT = 3.5; // points per metre; real players score about 1.5-2x
+  const LONG_RUN = 300; // seconds; it's flat out after 1.5 min, so 5 min without a splat is suspicious
   async function loadTop() {
     const el = $('top');
     try {
@@ -115,12 +116,13 @@
     el.innerHTML = `<table><thead><tr><th>Who</th><th>Score</th><th>Distance</th><th>Run</th><th>Pts/m</th><th></th></tr></thead><tbody>${list.map((e, i) => {
       const known = Number.isFinite(e.dist) && e.dist > 0;
       const ratio = known ? e.score / e.dist : null;
-      const flag = known && ratio > SUSPECT;
+      const long = Number.isFinite(e.secs) && e.secs > LONG_RUN;
+      const flag = (known && ratio > SUSPECT) || long;
       const secs = Number.isFinite(e.secs) ? `${Math.floor(e.secs / 60)}:${String(e.secs % 60).padStart(2, '0')}` : '–';
-      return `<tr class="${flag ? 'sus' : ''}"><td>${esc(e.initials)}</td><td>${fmt(e.score)}</td><td>${known ? fmt(e.dist) + 'm' : '–'}</td><td>${secs}</td>
-        <td>${known ? ratio.toFixed(1) + (flag ? ' ⚠️' : '') : '–'}</td><td><button class="rm" data-i="${i}">Remove</button></td></tr>`;
+      return `<tr class="${flag ? 'sus' : ''}"><td>${esc(e.initials)}</td><td>${fmt(e.score)}</td><td>${known ? fmt(e.dist) + 'm' : '–'}</td><td>${secs}${long ? ' ⚠️' : ''}</td>
+        <td>${known ? ratio.toFixed(1) + (known && ratio > SUSPECT ? ' ⚠️' : '') : '–'}</td><td><button class="rm" data-i="${i}">Remove</button></td></tr>`;
     }).join('')}</tbody></table>
-    <div class="desc">Real runs score about 1.5–2 points per metre; over ${SUSPECT} is flagged ⚠️. Scores saved before 11 Oct have no distance recorded.</div>`;
+    <div class="desc">Real runs score about 1.5–2 points per metre; over ${SUSPECT}, or a run over 5 minutes, is flagged ⚠️. Scores saved before 11 Oct have no distance recorded.</div>`;
     el.querySelectorAll('.rm').forEach((b) => b.addEventListener('click', async () => {
       const e = list[+b.dataset.i];
       if (!confirm(`Remove ${e.initials} ${fmt(e.score)} from the Top 10? This can't be undone.`)) return;

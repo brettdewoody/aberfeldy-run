@@ -866,6 +866,8 @@ function update(dt) {
     }
     p.jumpBuf = Math.max(0, p.jumpBuf - dt);
     p.phase += dt * (8 + G.speed * 0.75); // stride rate tracks speed: ~2.5 strides/s at the start, ~5 at top speed
+    // power-ups can never run longer than they're meant to, even if someone edits the timer
+    p.welly = Math.min(p.welly, 6); p.chalk = Math.min(p.chalk, CHALK_TIME); p.bike = Math.min(p.bike, BIKE_TIME);
     if (p.chalk > 0) {
       p.chalk -= dt;
       if (p.chalk <= 0) { p.chalk = 0; floater('CHALK\'S RUN OOT', 'Ye\'re on yer own', { color: '#fff', size: 32 }); }
