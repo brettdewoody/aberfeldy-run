@@ -45,7 +45,7 @@ export async function handleStats(req, store, key, ip = '') {
 
   // GET /api/stats
   if (!key) return json(503, { error: 'Stats are not set up yet (no STATS_KEY).' });
-  if (url.searchParams.get('key') !== key) return json(403, { error: 'Wrong key.' });
+  if (runs.ownerKey(req) !== key) return json(403, { error: 'Wrong key.' });
   const { blobs } = await store.list({ prefix: 'day-' });
   const days = await Promise.all(blobs.map(async (b) => ({ date: b.key.slice(4), rec: await store.get(b.key, { type: 'json' }) })));
   // One-off tidy-up: an earlier version stored anonymous player ids. Remove them for good.

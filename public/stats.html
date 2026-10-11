@@ -77,6 +77,9 @@
 
   const params = new URLSearchParams(location.search);
   let key = params.get('key') || store.get('ajd_stats_key') || '';
+  // Don't leave the key sitting in the address bar or browser history once it's been read.
+  if (params.has('key')) { store.set('ajd_stats_key', key); history.replaceState(null, '', location.pathname); }
+  const authed = () => ({ cache: 'no-store', headers: { 'X-Stats-Key': key } });
 
   function askForKey(message) {
     $('sub').textContent = message;
@@ -88,7 +91,7 @@
   async function load() {
     if (!key) return askForKey('Private page');
     let r;
-    try { r = await fetch(`api/stats?key=${encodeURIComponent(key)}`, { cache: 'no-store' }); } catch (e) { return askForKey('Could not reach the server.'); }
+    try { r = await fetch('api/stats', authed()); } catch (e) { return askForKey('Could not reach the server.'); }
     const body = await r.json().catch(() => ({}));
     if (r.status === 403) { store.set('ajd_stats_key', ''); return askForKey('That key was wrong.'); }
     if (!r.ok) return askForKey(body.error || 'Could not load stats.');
@@ -103,7 +106,7 @@
   async function loadTop() {
     const el = $('top');
     try {
-      const r = await fetch(`api/scores?key=${encodeURIComponent(key)}`, { cache: 'no-store' });
+      const r = await fetch('api/scores', authed());
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'failed');
       renderTop(j.scores);

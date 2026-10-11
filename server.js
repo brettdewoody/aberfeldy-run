@@ -100,7 +100,7 @@ function handleRun(req, res, p) {
 const isAdmin = (k) => !!process.env.STATS_KEY && k === process.env.STATS_KEY;
 function handleApi(req, res) {
   if (req.method === 'GET') {
-    const k = new URL(req.url, 'http://x').searchParams.get('key');
+    const k = runs.ownerKey(req);
     if (k == null) return json(res, 200, { scores: publicScores() });
     return isAdmin(k) ? json(res, 200, { scores }) : json(res, 403, { error: 'Wrong key.' });
   }
@@ -153,6 +153,11 @@ function serveStatic(req, res) {
     res.writeHead(200, {
       'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
       'Cache-Control': 'no-cache',
+      // same security headers as netlify.toml
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': file.endsWith('stats.html') ? 'no-referrer' : 'strict-origin-when-cross-origin',
     });
     res.end(buf);
   });
@@ -190,7 +195,7 @@ function handleStats(req, res, p) {
   }
   const key = process.env.STATS_KEY || '';
   if (!key) return json(res, 503, { error: 'Stats are not set up yet (no STATS_KEY).' });
-  if (new URL(req.url, 'http://x').searchParams.get('key') !== key) return json(res, 403, { error: 'Wrong key.' });
+  if (runs.ownerKey(req) !== key) return json(res, 403, { error: 'Wrong key.' });
   const days = Object.entries(statData.days).map(([date, rec]) => ({ date, rec }));
   json(res, 200, stats.summarize(days));
 }

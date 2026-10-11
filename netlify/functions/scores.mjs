@@ -27,8 +27,9 @@ export async function handleScores(req, ip, store, runStore, secret, now = Date.
   if (req.method === 'GET') {
     const scores = await store.get(KEY, { type: 'json' });
     // ?key=STATS_KEY: the owner's view, with each run's distance and length (stats page)
-    if (url.searchParams.has('key')) {
-      if (!isAdmin(url.searchParams.get('key'))) return json(403, { error: 'Wrong key.' });
+    const k = runs.ownerKey(req);
+    if (k != null) {
+      if (!isAdmin(k)) return json(403, { error: 'Wrong key.' });
       return json(200, { scores: Array.isArray(scores) ? scores : [] });
     }
     return json(200, { scores: publicScores(scores) });
