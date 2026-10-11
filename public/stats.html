@@ -114,6 +114,8 @@
   }
   function renderTop(scores) {
     const el = $('top');
+    const bestTile = [...document.querySelectorAll('.tile')].find((t) => t.querySelector('.label').textContent === 'Best score');
+    if (bestTile) bestTile.querySelector('.value').textContent = fmt(scores.reduce((m, e) => Math.max(m, e.score), 0));
     const list = scores.slice().sort((a, b) => b.score - a.score);
     if (!list.length) { el.innerHTML = '<div class="desc">No scores yet.</div>'; return; }
     el.innerHTML = `<table><thead><tr><th>Who</th><th>Score</th><th>Distance</th><th>Run</th><th>Pts/m</th><th></th></tr></thead><tbody>${list.map((e, i) => {
@@ -163,7 +165,7 @@
       ['Today', fmt(t.runs), `runs · ${fmt(t.players || 0)} player${t.players === 1 ? '' : 's'} · ${fmt(t.newPlayers)} new`],
       ['Runs per player', totals.players ? (totals.runs / totals.players).toFixed(1) : '0', 'average'],
       ['Distance run', `${fmt(Math.round(totals.dist / 1000))} km`, 'all runs added up'],
-      ['Best score', fmt(totals.best), 'single run'],
+      ['Best score', '…', 'top of the Top 10'],
     ];
     const series = lastNDays(days, 30);
     $('out').innerHTML = `
@@ -174,8 +176,8 @@
         <div class="legend"><span><i></i>Runs</span><span><i class="p"></i>Players</span></div>
         <div class="chart" id="chart"></div>
         <details><summary>Show as a table</summary>
-          <table><thead><tr><th>Day</th><th>Players</th><th>New</th><th>Visits</th><th>Runs</th><th>Finished</th><th>Best</th></tr></thead>
-          <tbody>${series.slice().reverse().map((d) => `<tr><td>${esc(d.date)}</td><td>${playersOf(d) == null ? '–' : fmt(d.players)}</td><td>${fmt(d.newPlayers)}</td><td>${fmt(d.visits)}</td><td>${fmt(d.runs)}</td><td>${fmt(d.finishes)}</td><td>${fmt(d.best)}</td></tr>`).join('')}</tbody></table>
+          <table><thead><tr><th>Day</th><th>Players</th><th>New</th><th>Visits</th><th>Runs</th><th>Finished</th></tr></thead>
+          <tbody>${series.slice().reverse().map((d) => `<tr><td>${esc(d.date)}</td><td>${playersOf(d) == null ? '–' : fmt(d.players)}</td><td>${fmt(d.newPlayers)}</td><td>${fmt(d.visits)}</td><td>${fmt(d.runs)}</td><td>${fmt(d.finishes)}</td></tr>`).join('')}</tbody></table>
         </details>
       </div>
       <div class="card">
