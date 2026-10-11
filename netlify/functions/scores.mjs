@@ -18,12 +18,19 @@ const json = (status, body) => new Response(JSON.stringify(body), {
 });
 
 export default (req, context) => handleScores(req, context.ip || '', getStore({ name: 'leaderboard', consistency: 'strong' }),
-  getStore({ name: 'runs', consistency: 'strong' }), blobs.envVar('RUN_SECRET'));
+  getStore({ name: 'runs', consistency: 'strong' }), blobs.envVar('RUN_SECRET'), Date.now(), blobs.envVar('STATS_KEY'));
 
-export async function handleScores(req, ip, store, runStore, secret, now = Date.now()) {
+export async function handleScores(req, ip, store, runStore, secret, now = Date.now(), adminKey = '') {
+  const url = new URL(req.url);
+  const isAdmin = (k) => !!adminKey && k === adminKey;
 
   if (req.method === 'GET') {
     const scores = await store.get(KEY, { type: 'json' });
+    // ?key=STATS_KEY: the owner's view, with each run's distance and length (stats page)
+    if (url.searchParams.has('key')) {
+      if (!isAdmin(url.searchParams.get('key'))) return json(403, { error: 'Wrong key.' });
+      return json(200, { scores: Array.isArray(scores) ? scores : [] });
+    }
     return json(200, { scores: publicScores(scores) });
   }
   if (req.method !== 'POST') return json(405, { error: 'Method not allowed' });
@@ -38,6 +45,21 @@ export async function handleScores(req, ip, store, runStore, secret, now = Date.
   } catch (e) {
     return json(400, { error: 'Bad request' });
   }
+
+  // The owner removing a score: {key, remove: {initials, score}}
+  if (data && data.remove) {
+    if (!isAdmin(data.key)) return json(403, { error: 'Wrong key.' });
+    const { initials, score } = data.remove;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const current = await store.getWithMetadata(KEY, { type: 'json' });
+      const list = current && Array.isArray(current.data) ? current.data : [];
+      const keep = list.filter((e) => !(e.initials === initials && e.score === score));
+      if (keep.length === list.length) return json(404, { error: 'No such score.' });
+      const { modified } = await store.setJSON(KEY, keep, { onlyIfMatch: current.etag });
+      if (modified) return json(200, { scores: keep });
+    }
+    return json(429, { error: 'Busy. Try again.' });
+  }
   const receipt = open(secret, data && data.receipt);
   const rErr = receipt ? checkReceipt(receipt, now) : 'Bad receipt.';
   if (rErr) return json(400, { error: rErr });
@@ -50,7 +72,8 @@ export async function handleScores(req, ip, store, runStore, secret, now = Date.
   for (let attempt = 0; attempt < 8; attempt++) {
     if (attempt) await new Promise((r) => setTimeout(r, Math.random() * 40 * attempt));
     const current = await store.getWithMetadata(KEY, { type: 'json' });
-    const result = insert(current ? current.data : [], { initials: v.initials, score: v.score, t: Date.now() });
+    // dist and secs are kept so the owner can spot a suspicious run on the stats page
+    const result = insert(current ? current.data : [], { initials: v.initials, score: v.score, t: Date.now(), dist: receipt.dist, secs: Math.round((receipt.t1 - receipt.t0) / 1000) });
     if (result.rank === -1) return json(200, { scores: publicScores(result.scores), rank: -1 });
     const { modified } = await store.setJSON(KEY, result.scores, current ? { onlyIfMatch: current.etag } : { onlyIfNew: true });
     if (modified) return json(200, { scores: publicScores(result.scores), rank: result.rank });

@@ -80,13 +80,18 @@ Scores can't simply be posted to the server:
 1. **RUN!** asks the server for a ticket recording when the run started, signed with `RUN_SECRET`.
 2. At **game over** the game sends the ticket, distance and score. The server checks the distance was possible
    in the real time since the ticket (the game's top speed plus bike boosts) and that the score fits the
-   distance, then returns a signed receipt.
+   distance (at most 5 points per metre plus 500; a perfect player tops out around 5x, real players
+   score 1.5-2x), then returns a signed receipt.
 3. Only a receipt can be saved to the Top 10, the score comes from the receipt, and each run is accepted once.
 
 Runs and finishes in the stats are counted from those same server steps, not from messages the browser sends.
 API requests must come from the game's own site, and visits are rate-limited (IP addresses are only held
 briefly in memory, never stored). This stops typed-in, edited and replayed scores; it can't stop someone who
 writes a bot that genuinely plays the game, which no browser game can.
+
+Each Top 10 entry also records its run's distance and length. The private stats page lists them with
+points per metre, flags anything over 3.5, and has a **Remove** button for scores that look fiddled.
+The game's test hook (`window.__ajd`) only exists when running on localhost.
 
 Set `RUN_SECRET` (any long random string) in Netlify's environment variables. Without it, the server
 can't sign runs and nobody can save to the global Top 10.

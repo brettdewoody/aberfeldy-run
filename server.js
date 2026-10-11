@@ -97,8 +97,13 @@ function handleRun(req, res, p) {
   });
 }
 
+const isAdmin = (k) => !!process.env.STATS_KEY && k === process.env.STATS_KEY;
 function handleApi(req, res) {
-  if (req.method === 'GET') return json(res, 200, { scores: publicScores() });
+  if (req.method === 'GET') {
+    const k = new URL(req.url, 'http://x').searchParams.get('key');
+    if (k == null) return json(res, 200, { scores: publicScores() });
+    return isAdmin(k) ? json(res, 200, { scores }) : json(res, 403, { error: 'Wrong key.' });
+  }
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   if (!runs.sameSite(req, hostOf(req))) return json(res, 403, { error: 'Not from the game.' });
 
@@ -110,6 +115,14 @@ function handleApi(req, res) {
   req.on('end', () => {
     let data;
     try { data = JSON.parse(body); } catch (e) { return json(res, 400, { error: 'Bad request' }); }
+    if (data && data.remove) { // the owner removing a score
+      if (!isAdmin(data.key)) return json(res, 403, { error: 'Wrong key.' });
+      const before = scores.length;
+      scores = scores.filter((e) => !(e.initials === data.remove.initials && e.score === data.remove.score));
+      if (scores.length === before) return json(res, 404, { error: 'No such score.' });
+      try { persist(); } catch (e) { console.error('Failed to save scores', e); }
+      return json(res, 200, { scores });
+    }
     const receipt = runs.open(RUN_SECRET, data && data.receipt);
     const rErr = receipt ? runs.checkReceipt(receipt, Date.now()) : 'Bad receipt.';
     if (rErr) return json(res, 400, { error: rErr });
@@ -119,7 +132,7 @@ function handleApi(req, res) {
     if (rateLimited(ip)) return json(res, 429, { error: 'Haud on, too fast. Try again in a sec.' });
     if (!claimOnce(`lb-${receipt.id}`)) return json(res, 409, { error: 'That run is already saved.' });
 
-    const result = insert(scores, { initials: v.initials, score: v.score, t: Date.now() });
+    const result = insert(scores, { initials: v.initials, score: v.score, t: Date.now(), dist: receipt.dist, secs: Math.round((receipt.t1 - receipt.t0) / 1000) });
     scores = result.scores;
     const rank = result.rank;
     if (rank !== -1) {

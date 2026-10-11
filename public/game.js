@@ -2882,5 +2882,5 @@ if (document.fonts && document.fonts.load) {
 requestAnimationFrame(frame);
 
 // tiny hook for automated smoke tests
-window.__ajd = { get state() { return G; }, get mode() { return mode; }, startGame, move, jump, drop, spawnRow, chalkRoute, chalkClear };
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__ajd = { get state() { return G; }, get mode() { return mode; }, startGame, move, jump, drop, spawnRow, chalkRoute, chalkClear };
 })();

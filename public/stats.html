@@ -57,6 +57,8 @@
     input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 15px; }
     button { padding: 10px 16px; border-radius: 8px; border: 0; background: var(--gold); color: #3b2412; font-weight: 800; cursor: pointer; }
     a { color: var(--gold); }
+    tr.sus td { color: #ffb4a8; }
+    .rm { padding: 4px 8px; font-size: 12px; background: transparent; color: var(--ink-2); border: 1px solid var(--line); }
   </style>
 </head>
 <body>
@@ -92,6 +94,41 @@
     if (!r.ok) return askForKey(body.error || 'Could not load stats.');
     store.set('ajd_stats_key', key);
     render(body);
+    loadTop();
+  }
+
+  // ---- Top 10, owner's view: each run's distance and length, so an edited score stands out
+  const SUSPECT = 3.5; // points per metre; real players score about 1.5-2x
+  async function loadTop() {
+    const el = $('top');
+    try {
+      const r = await fetch(`api/scores?key=${encodeURIComponent(key)}`, { cache: 'no-store' });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'failed');
+      renderTop(j.scores);
+    } catch (e) { el.innerHTML = '<div class="desc">Could not load the Top 10.</div>'; }
+  }
+  function renderTop(scores) {
+    const el = $('top');
+    const list = scores.slice().sort((a, b) => b.score - a.score);
+    if (!list.length) { el.innerHTML = '<div class="desc">No scores yet.</div>'; return; }
+    el.innerHTML = `<table><thead><tr><th>Who</th><th>Score</th><th>Distance</th><th>Run</th><th>Pts/m</th><th></th></tr></thead><tbody>${list.map((e, i) => {
+      const known = Number.isFinite(e.dist) && e.dist > 0;
+      const ratio = known ? e.score / e.dist : null;
+      const flag = known && ratio > SUSPECT;
+      const secs = Number.isFinite(e.secs) ? `${Math.floor(e.secs / 60)}:${String(e.secs % 60).padStart(2, '0')}` : '–';
+      return `<tr class="${flag ? 'sus' : ''}"><td>${esc(e.initials)}</td><td>${fmt(e.score)}</td><td>${known ? fmt(e.dist) + 'm' : '–'}</td><td>${secs}</td>
+        <td>${known ? ratio.toFixed(1) + (flag ? ' ⚠️' : '') : '–'}</td><td><button class="rm" data-i="${i}">Remove</button></td></tr>`;
+    }).join('')}</tbody></table>
+    <div class="desc">Real runs score about 1.5–2 points per metre; over ${SUSPECT} is flagged ⚠️. Scores saved before 11 Oct have no distance recorded.</div>`;
+    el.querySelectorAll('.rm').forEach((b) => b.addEventListener('click', async () => {
+      const e = list[+b.dataset.i];
+      if (!confirm(`Remove ${e.initials} ${fmt(e.score)} from the Top 10? This can't be undone.`)) return;
+      b.disabled = true;
+      const r = await fetch('api/scores', { method: 'POST', body: JSON.stringify({ key, remove: { initials: e.initials, score: e.score } }) }).catch(() => null);
+      const j = r ? await r.json().catch(() => ({})) : {};
+      if (r && r.ok) renderTop(j.scores); else { alert(j.error || 'Could not remove it.'); b.disabled = false; }
+    }));
   }
 
   function lastNDays(days, n) {
@@ -135,6 +172,11 @@
           <table><thead><tr><th>Day</th><th>Players</th><th>New</th><th>Visits</th><th>Runs</th><th>Finished</th><th>Best</th></tr></thead>
           <tbody>${series.slice().reverse().map((d) => `<tr><td>${esc(d.date)}</td><td>${playersOf(d) == null ? '–' : fmt(d.players)}</td><td>${fmt(d.newPlayers)}</td><td>${fmt(d.visits)}</td><td>${fmt(d.runs)}</td><td>${fmt(d.finishes)}</td><td>${fmt(d.best)}</td></tr>`).join('')}</tbody></table>
         </details>
+      </div>
+      <div class="card">
+        <h2>Top 10 (only you see this)</h2>
+        <div class="desc">Each run's distance and length, to spot a fiddled score. Remove takes it off the public board.</div>
+        <div id="top"><div class="desc">Loading…</div></div>
       </div>`;
     lastSeries = series;
     drawChart(series);
